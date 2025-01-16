@@ -13,7 +13,7 @@ from flax.training import train_state
 from diffusers import DDPMScheduler
 from utils import DiffusionScheduler
 
-
+TOTAL_TIME_STEPS = 50
 INF = 1e8
 
 
@@ -86,7 +86,7 @@ def train_step(state, uids, noisy_iids, iids):
 
 
 def train(state, dataloader, epochs, device, key):
-    noise_scheduler = DiffusionScheduler(num_train_timesteps=1000)
+    noise_scheduler = DiffusionScheduler(num_train_timesteps=TOTAL_TIME_STEPS)
 
     for epoch in range(epochs):
         pbar = tqdm(dataloader)
@@ -112,9 +112,18 @@ def inference(model, state, test_dataloader, key, n_item):
         # uids = jnp.array(uids, dtype=jnp.int32)
         uids = jnp.array(uids)
         noisy_iids = jax.random.normal(rand_key, shape=(uids.shape[0], n_item))
-        # noisy_iids = None
-        gen_bundles = state.apply_fn(state.params, uids=uids, iids=noisy_iids, method=model.__call__)
-        all_genbundles.append(gen_bundles)
+
+        prev_prob_iids = []
+        prev_step = [noisy_iids]
+        for i in range(TOTAL_TIME_STEPS):
+            denoised_prob_iids = state.apply_fn(state.params, uids = uids, prob_iids=noisy_iids)
+            prev_prob_iids.append(denoised_prob_iids)
+            mix_factor = 1 / (TOTAL_TIME_STEPS - i)
+            noisy_iids = noisy_iids * (1-mix_factor) + denoised_prob_iids * mix_factor # polyak update
+            prev_step.append(noisy_iids)
+
+        # gen_bundles = state.apply_fn(state.params, uids=uids, probs_iids=noisy_iids, method=model.__call__)
+        all_genbundles.append(prev_prob_iids[-1])
     all_genbundles = np.concatenate(all_genbundles, axis=0)
     return all_genbundles
 
@@ -213,7 +222,7 @@ def main():
     """
     logits = state.apply_fn(state.params, sample_uids, sample_placeholder)
     state = train(state, dataloader, conf["epoch"], device, rng_gen)
-    exit()
+    # exit()
     """
     Generate & Evaluate
     """
