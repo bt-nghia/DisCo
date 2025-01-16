@@ -1,10 +1,8 @@
 from tqdm import tqdm
 from argparse import ArgumentParser
 
-
 from config import conf
 from utils import *
-
 
 import jax
 import jax.numpy as jnp
@@ -23,10 +21,7 @@ def get_args():
     argp = ArgumentParser()
     argp.add_argument("--device_id", type=int, default=0)
     argp.add_argument("--dataset", type=str, default="clothing")
-    argp.add_argument("--batch_size", type=int, default=16)
-    argp.add_argument("--n_dim", type=int, default=16)
     argp.add_argument("--data_path", type=str, default="datasets")
-    argp.add_argument("--epoch", type=int, default=100)
     args = argp.parse_args()
     return args
 
@@ -78,13 +73,13 @@ def cal_metrics(
     return recall_cnt.sum(), pre_cnt.sum(), ndcg_cnt.sum()
 
 
-def train_step(state, noisy_x, x):
-    def mse_loss_fn(params, noisy_x, x):
-        logits = state.apply_fn(params, noisy_x)
-        loss = jnp.mean((logits - x)**2)
+def train_step(state, uids, noisy_iids, iids):
+    def mse_loss_fn(params, noisy_iids, iids):
+        logits = state.apply_fn(params, uids, noisy_iids)
+        loss = jnp.mean((logits - iids)**2)
         return loss, {"loss": loss}
 
-    aux, grads = jax.value_and_grad(mse_loss_fn, has_aux=True)(state.params, noisy_x, x)
+    aux, grads = jax.value_and_grad(mse_loss_fn, has_aux=True)(state.params, noisy_iids, iids, input=None)
     state = state.apply_gradients(grads=grads)
     loss, aux_dict = aux
     return state, loss, aux_dict
@@ -95,24 +90,29 @@ def train(state, dataloader, epochs, device, key):
 
     for epoch in range(epochs):
         pbar = tqdm(dataloader)
-        for x in pbar:
-            x = jnp.array(x)
+        for uids, iids in pbar:
+            uids = jnp.array(uids, dtype=jnp.int32)
+            iids = jnp.array(iids)
             randkey, timekey, key = jax.random.split(key, num=3)
-            noise = jax.random.normal(randkey, shape=x.shape)
-            timesteps = jax.random.randint(timekey, (x.shape[0],), minval=0, maxval=999)
+            noise = jax.random.normal(randkey, shape=iids.shape)
+            timesteps = jax.random.randint(timekey, (iids.shape[0],), minval=0, maxval=999)
 
-            noisy_x = noise_scheduler.add_noise(x, noise, timesteps)
-            state, loss, aux_dict = jax.jit(train_step, device=device)(state, noisy_x, x)
+            noisy_iids = noise_scheduler.add_noise(iids, noise, timesteps)
+            state, loss, aux_dict = jax.jit(train_step, device=device)(state, uids, noisy_iids, iids)
             pbar.set_description("epoch: %i loss: %.4f" % (epoch, loss))
     return state
 
 
-def inference(model, state, test_dataloader):
+def inference(model, state, test_dataloader, key, n_item):
     all_genbundles = []
     for test_data in test_dataloader:
+        # key, rand_key = jax.random.split(key)
         uids = test_data
+        # uids = jnp.array(uids, dtype=jnp.int32)
         uids = jnp.array(uids)
-        gen_bundles = state.apply_fn(state.params, X=uids, method=model.__call__)
+        # noisy_iids = jax.random.normal(rand_key, shape=(uids.shape[0], n_item))
+        noisy_iids = None
+        gen_bundles = state.apply_fn(state.params, uids=uids, iids=noisy_iids, input=None, method=model.__call__)
         all_genbundles.append(gen_bundles)
     all_genbundles = np.concatenate(all_genbundles, axis=0)
     return all_genbundles
@@ -171,14 +171,11 @@ def main():
     conf["n_user"] = nu
     conf["n_item"] = ni
     conf["n_bundle"] = nb
-    conf["n_dim"] = args.n_dim
-    conf["batch_size"] = args.batch_size
-    conf["epoch"] = args.epoch
     devices = jax.devices()
     device = devices[args.device_id]
     conf["device"] = device
 
-    rng_gen, rng_model = jax.random.split(jax.random.PRNGKey(2025), num=2)
+    rng_infer, rng_gen, rng_model = jax.random.split(jax.random.PRNGKey(2025), num=3)
     np.random.seed(2025)
     print(conf)
 
@@ -192,13 +189,14 @@ def main():
     """
     Main Model & Optimizer, Train State
     """
+    sample_uids = jnp.empty((1,))
     sample_placeholder = jnp.empty((1, conf["n_item"]))
     model = Net(conf)
 
     conf["model_name"] = model.__class__.__name__
     print(f"MODEL NAME: {conf['model_name']}")
     print(f"DATACLASS: {train_data.__class__.__name__}, {test_data.__class__.__name__}")
-    params = model.init(rng_model, sample_placeholder)
+    params = model.init(rng_model, sample_uids, sample_placeholder, input=None)
 
     optimizer = optax.adam(learning_rate=1e-3)
     dataloader = DataLoader(train_data,
@@ -212,8 +210,8 @@ def main():
     """
     Training & Save checkpoint
     """
-    logits = state.apply_fn(state.params, sample_placeholder)
-    state = train(state, dataloader, conf["epoch"], device, rng_gen)
+    # logits = state.apply_fn(state.params, sample_uids, sample_placeholder)
+    # state = train(state, dataloader, conf["epoch"], device, rng_gen)
     """
     Generate & Evaluate
     """
@@ -222,7 +220,7 @@ def main():
                                  shuffle=False,
                                  drop_last=False)
     
-    generated_bundles_test = inference(model, state, test_dataloader)
+    generated_bundles_test = inference(model, state, test_dataloader, rng_infer, conf["n_item"])
     eval(conf, train_data, test_data, generated_bundles_test)
 
 

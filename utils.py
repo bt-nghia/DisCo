@@ -1,11 +1,9 @@
-import jax.lax
 import jax.numpy as jnp
 import pandas as pd
 import numpy as np
 from config import *
 from torch.utils.data import Dataset, DataLoader
 
-import os
 import scipy.sparse as sp
 from jax.experimental import sparse
 
@@ -93,16 +91,30 @@ class TestData():
         self.ui_pairs = get_pairs(f"{self.conf['data_path']}/{self.conf['dataset']}/user_item.txt")
         self.ub_pairs = get_pairs(f"{self.conf['data_path']}/{self.conf['dataset']}/user_bundle_{task}.txt")
         self.bi_pairs = get_pairs(f"{self.conf['data_path']}/{self.conf['dataset']}/bundle_item.txt")
+        self.ub_mask_pairs = get_pairs(f"{self.conf['data_path']}/{self.conf['dataset']}/user_bundle_train.txt")
 
         self.ui_graph = list2csr_sp_graph(self.ui_pairs, (self.num_user, self.num_item))
         self.ub_graph = list2csr_sp_graph(self.ub_pairs, (self.num_user, self.num_bundle))
         self.bi_graph = list2csr_sp_graph(self.bi_pairs, (self.num_bundle, self.num_item))
         self.test_uid = self.ub_graph.sum(axis=1).nonzero()[0]
+        self.ub_mask_graph = list2csr_sp_graph(self.ub_mask_pairs, (self.num_user, self.num_bundle))
+
+        # self.ubi_ui_graph = self.ub_mask_graph @ self.bi_graph + self.ui_graph * 0 > 0
 
     def __getitem__(self, index):
-        test_uid_input = np.array(self.ui_graph[self.test_uid[index]].todense())
+        # test_uid_input = np.array(self.ui_graph[self.test_uid[index]].todense())
+        test_mat = self.ui_graph[self.test_uid[index]].tocsr()
+        # test_mat.data[30:] = 0
+        # print(test_mat.nonzero()[1])
+        test_uid_input = np.array(test_mat.todense())
+        # print(test_mat.data)
+        # print(test_uid_input.sum())
+        # print(self.ui_graph[self.test_uid[index]].nonzero()[1])
+        # exit()
+        # test_uid_input = np.array(self.ubi_ui_graph[self.test_uid[index]].todense())
         test_uid_input = test_uid_input.reshape(-1)
         return test_uid_input
+        # return index
 
     def __len__(self):
         return len(self.test_uid)
@@ -128,7 +140,7 @@ class TrainData(Dataset):
         self.uibi_graph = self.ui_graph + self.ub_graph @ self.bi_graph
 
     def __getitem__(self, index):
-        return self.ui_graph[index].todense()
+        return index, self.ui_graph[index].todense()
 
     def __len__(self):
         return self.num_user
