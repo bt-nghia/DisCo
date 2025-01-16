@@ -103,18 +103,18 @@ class TestData():
 
     def __getitem__(self, index):
         # test_uid_input = np.array(self.ui_graph[self.test_uid[index]].todense())
-        test_mat = self.ui_graph[self.test_uid[index]].tocsr()
+        # test_mat = self.ui_graph[self.test_uid[index]].tocsr()
         # test_mat.data[30:] = 0
         # print(test_mat.nonzero()[1])
-        test_uid_input = np.array(test_mat.todense())
+        # test_uid_input = np.array(test_mat.todense())
         # print(test_mat.data)
         # print(test_uid_input.sum())
         # print(self.ui_graph[self.test_uid[index]].nonzero()[1])
         # exit()
         # test_uid_input = np.array(self.ubi_ui_graph[self.test_uid[index]].todense())
-        test_uid_input = test_uid_input.reshape(-1)
-        return test_uid_input
-        # return index
+        # test_uid_input = test_uid_input.reshape(-1)
+        # return index, test_uid_input
+        return index
 
     def __len__(self):
         return len(self.test_uid)

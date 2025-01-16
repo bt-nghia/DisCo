@@ -139,7 +139,7 @@ class Net(nn.Module):
         self.encoder = [EncoderLayer(self.conf) for _ in range(self.conf["n_layer"])]
         self.mlp = PredLayer(self.conf)
 
-    def __call__(self, uids, iids, input):
+    def __call__(self, uids, iids):
         """
         model input 
         input (train): historical item probabilities
@@ -147,11 +147,13 @@ class Net(nn.Module):
         uids: user id for personalize
         iids: item id for guidance
         """
+        print(uids)
+        users_feat = self.user_emb[uids]
         # print(X)
         # exit()
         # print(X.nonzero())
         # print(uids, iids)
         # return iids
-        return uids
+        return iids
     
     

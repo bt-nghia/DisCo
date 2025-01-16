@@ -79,7 +79,7 @@ def train_step(state, uids, noisy_iids, iids):
         loss = jnp.mean((logits - iids)**2)
         return loss, {"loss": loss}
 
-    aux, grads = jax.value_and_grad(mse_loss_fn, has_aux=True)(state.params, noisy_iids, iids, input=None)
+    aux, grads = jax.value_and_grad(mse_loss_fn, has_aux=True)(state.params, noisy_iids, iids)
     state = state.apply_gradients(grads=grads)
     loss, aux_dict = aux
     return state, loss, aux_dict
@@ -106,13 +106,13 @@ def train(state, dataloader, epochs, device, key):
 def inference(model, state, test_dataloader, key, n_item):
     all_genbundles = []
     for test_data in test_dataloader:
-        # key, rand_key = jax.random.split(key)
+        key, rand_key = jax.random.split(key)
         uids = test_data
         # uids = jnp.array(uids, dtype=jnp.int32)
         uids = jnp.array(uids)
-        # noisy_iids = jax.random.normal(rand_key, shape=(uids.shape[0], n_item))
-        noisy_iids = None
-        gen_bundles = state.apply_fn(state.params, uids=uids, iids=noisy_iids, input=None, method=model.__call__)
+        noisy_iids = jax.random.normal(rand_key, shape=(uids.shape[0], n_item))
+        # noisy_iids = None
+        gen_bundles = state.apply_fn(state.params, uids=uids, iids=noisy_iids, method=model.__call__)
         all_genbundles.append(gen_bundles)
     all_genbundles = np.concatenate(all_genbundles, axis=0)
     return all_genbundles
@@ -189,14 +189,14 @@ def main():
     """
     Main Model & Optimizer, Train State
     """
-    sample_uids = jnp.empty((1,))
+    sample_uids = jnp.array([0])
     sample_placeholder = jnp.empty((1, conf["n_item"]))
     model = Net(conf)
 
     conf["model_name"] = model.__class__.__name__
     print(f"MODEL NAME: {conf['model_name']}")
     print(f"DATACLASS: {train_data.__class__.__name__}, {test_data.__class__.__name__}")
-    params = model.init(rng_model, sample_uids, sample_placeholder, input=None)
+    params = model.init(rng_model, sample_uids, sample_placeholder)
 
     optimizer = optax.adam(learning_rate=1e-3)
     dataloader = DataLoader(train_data,
@@ -210,8 +210,9 @@ def main():
     """
     Training & Save checkpoint
     """
-    # logits = state.apply_fn(state.params, sample_uids, sample_placeholder)
-    # state = train(state, dataloader, conf["epoch"], device, rng_gen)
+    logits = state.apply_fn(state.params, sample_uids, sample_placeholder)
+    state = train(state, dataloader, conf["epoch"], device, rng_gen)
+    exit()
     """
     Generate & Evaluate
     """
