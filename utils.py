@@ -140,7 +140,8 @@ class TrainData(Dataset):
         self.uibi_graph = self.ui_graph + self.ub_graph @ self.bi_graph
 
     def __getitem__(self, index):
-        return index, self.ui_graph[index].todense()
+        prob_iids = np.array(self.ui_graph[index].todense()).reshape(-1)
+        return index, prob_iids
 
     def __len__(self):
         return self.num_user

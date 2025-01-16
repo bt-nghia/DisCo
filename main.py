@@ -90,20 +90,21 @@ def train(state, dataloader, epochs, device, key):
 
     for epoch in range(epochs):
         pbar = tqdm(dataloader)
-        for uids, iids in pbar:
+        for uids, prob_iids in pbar:
             uids = jnp.array(uids, dtype=jnp.int32)
-            iids = jnp.array(iids)
+            prob_iids = jnp.array(prob_iids)
             randkey, timekey, key = jax.random.split(key, num=3)
-            noise = jax.random.normal(randkey, shape=iids.shape)
-            timesteps = jax.random.randint(timekey, (iids.shape[0],), minval=0, maxval=999)
+            noise = jax.random.normal(randkey, shape=prob_iids.shape)
+            timesteps = jax.random.randint(timekey, (prob_iids.shape[0],), minval=0, maxval=999)
 
-            noisy_iids = noise_scheduler.add_noise(iids, noise, timesteps)
-            state, loss, aux_dict = jax.jit(train_step, device=device)(state, uids, noisy_iids, iids)
+            noisy_iids = noise_scheduler.add_noise(prob_iids, noise, timesteps)
+            state, loss, aux_dict = jax.jit(train_step, device=device)(state, uids, noisy_iids, prob_iids)
             pbar.set_description("epoch: %i loss: %.4f" % (epoch, loss))
     return state
 
 
 def inference(model, state, test_dataloader, key, n_item):
+    #TODO (bt-nghia): fix inference loop over timesteps
     all_genbundles = []
     for test_data in test_dataloader:
         key, rand_key = jax.random.split(key)

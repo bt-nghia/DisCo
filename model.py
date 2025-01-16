@@ -105,17 +105,14 @@ class PredLayer(nn.Module):
     conf: dict
 
     def setup(self):
-        self.n_token = self.conf["n_token"]
-        self.beta = self.conf["beta"]
-        self.lin = nn.Dense(self.n_token,
+        self.n_item = self.conf["n_item"]
+        self.lin = nn.Dense(self.n_item,
                             kernel_init=nn.initializers.xavier_uniform(),
                             bias_init=nn.initializers.zeros)
 
     def __call__(self, X):
         out = self.lin(X)
-        bs, seq_len, n_token = out.shape
-        noise = np.random.rand(bs, seq_len, n_token) * self.beta
-        logits = out + noise
+        logits = nn.sigmoid(out)
         return logits
 
 
@@ -139,7 +136,7 @@ class Net(nn.Module):
         self.encoder = [EncoderLayer(self.conf) for _ in range(self.conf["n_layer"])]
         self.mlp = PredLayer(self.conf)
 
-    def __call__(self, uids, iids):
+    def __call__(self, uids, prob_iids):
         """
         model input 
         input (train): historical item probabilities
@@ -147,13 +144,16 @@ class Net(nn.Module):
         uids: user id for personalize
         iids: item id for guidance
         """
-        print(uids)
+        # print(uids)
         users_feat = self.user_emb[uids]
+        in_feat = jnp.concat([users_feat, prob_iids], axis=1)
+        # print(in_feat.shape)
+        out_feat = self.mlp(in_feat)
         # print(X)
         # exit()
         # print(X.nonzero())
         # print(uids, iids)
         # return iids
-        return iids
+        return out_feat
     
     
