@@ -99,7 +99,7 @@ def train(state, dataloader, noise_scheduler, epochs, device, key):
             noise = jax.random.normal(randkey, shape=prob_iids_bundle.shape)
             timesteps = jax.random.randint(timekey, (prob_iids_bundle.shape[0],), minval=0, maxval=TOTAL_TIMESTEPS-1)
 
-            noisy_prob_iids_bundle = noise_scheduler.add_noise(prob_iids, noise, timesteps)
+            noisy_prob_iids_bundle = noise_scheduler.add_noise(prob_iids_bundle, noise, timesteps)
             state, loss, aux_dict = jax.jit(train_step, device=device)(state, uids, prob_iids, noisy_prob_iids_bundle, prob_iids_bundle)
             pbar.set_description("epoch: %i loss: %.4f" % (epoch, loss))
     return state
@@ -114,7 +114,7 @@ def inference(model, state, test_dataloader, noise_scheduler, key, n_item):
         uids, prob_iids = test_data
         uids = jnp.array(uids, dtype=jnp.int32)
         prob_iids = jnp.array(prob_iids)
-        noisy_prob_iids_bundle = jax.random.uniform(rand_key, shape=(uids.shape[0], n_item))
+        noisy_prob_iids_bundle = jax.random.normal(rand_key, shape=(uids.shape[0], n_item))
 
         post_prob_iids_bundle = [noisy_prob_iids_bundle]
         for i, t in enumerate(noise_scheduler.timesteps):

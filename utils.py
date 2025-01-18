@@ -103,7 +103,8 @@ class DiffusionScheduler:
             noise,
             timesteps,
     ):
-        noisy_input = original_samples * (1-self.betas[timesteps]) + noise * self.betas[timesteps]
+        # print(self.betas[timesteps])
+        noisy_input = original_samples * (1-self.betas[timesteps].reshape(-1, 1)) + noise * self.betas[timesteps].reshape(-1, 1)
         return noisy_input
 
     def step(
