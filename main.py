@@ -76,7 +76,7 @@ def cal_metrics(
 def train_step(state, uids, prob_iids, noisy_prob_iids_bundle, prob_iids_bundle):
     def mse_loss_fn(params, uids, prob_iids, noisy_prob_iids_bundle, prob_iids_bundle):
         logits = state.apply_fn(params, uids, prob_iids, noisy_prob_iids_bundle)
-        loss = jnp.mean((logits - prob_iids_bundle)**2)
+        loss = jnp.mean((logits - prob_iids)**2)
         return loss, {"loss": loss}
 
     aux, grads = jax.value_and_grad(mse_loss_fn, has_aux=True)(state.params, uids, prob_iids, noisy_prob_iids_bundle, prob_iids_bundle)
@@ -226,7 +226,7 @@ def main():
     """
     Training & Save checkpoint
     """
-    # state = train(state, dataloader, noise_scheduler, conf["epoch"], device, rng_gen)
+    state = train(state, dataloader, noise_scheduler, conf["epoch"], device, rng_gen)
     """
     Generate & Evaluate
     """

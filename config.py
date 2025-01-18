@@ -5,6 +5,6 @@ conf = {
     "n_layer": 2,
     "n_dim": 64,
     "batch_size": 1024,
-    "epoch": 20,
+    "epoch": 50,
     "timesteps": 100,
 }
