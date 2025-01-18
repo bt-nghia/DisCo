@@ -135,6 +135,9 @@ class Net(nn.Module):
         
         self.encoder = [EncoderLayer(self.conf) for _ in range(self.conf["n_layer"])]
         self.mlp = PredLayer(self.conf)
+        self.enc = nn.Dense(self.hidden_dim,
+                            kernel_init=nn.initializers.xavier_uniform(),
+                            bias_init=nn.initializers.zeros)
 
     def __call__(self, uids, prob_iids, prob_iids_bundle):
         """
@@ -144,7 +147,8 @@ class Net(nn.Module):
         """
         # print(uids)
         users_feat = self.user_emb[uids]
-        in_feat = jnp.concat([users_feat, prob_iids_bundle], axis=1)
+        prob_enc = self.enc(prob_iids_bundle)
+        in_feat = jnp.concat([users_feat, prob_enc], axis=1)
         out_feat = self.mlp(in_feat, prob_iids)
         return out_feat
         # return prob_iids
