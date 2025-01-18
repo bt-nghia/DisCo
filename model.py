@@ -110,8 +110,8 @@ class PredLayer(nn.Module):
                             kernel_init=nn.initializers.xavier_uniform(),
                             bias_init=nn.initializers.zeros)
 
-    def __call__(self, X):
-        out = self.lin(X)
+    def __call__(self, X, residual_feat):
+        out = self.lin(X) + residual_feat
         logits = nn.sigmoid(out)
         return logits
 
@@ -143,18 +143,10 @@ class Net(nn.Module):
         prob_iids_bundle: sampled item in interacted bundle probability (noise while inference)
         """
         # print(uids)
-        # users_feat = self.user_emb[uids]
-        # in_feat = jnp.concat([users_feat, prob_iids], axis=1)
-        # print(in_feat.shape)
-        # out_feat = self.mlp(in_feat)
-        # print(X)
-        # exit()
-        # print(X.nonzero())
-        # print(uids, iids)
-        # return iids
-        # return out_feat
-        # print(prob_iids.dtype)
-        return prob_iids
+        users_feat = self.user_emb[uids]
+        in_feat = jnp.concat([users_feat, prob_iids_bundle], axis=1)
+        out_feat = self.mlp(in_feat, prob_iids)
+        return out_feat
     
 # Youshu
 # Recall@1: 0.0024061751452623434

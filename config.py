@@ -4,6 +4,6 @@ conf = {
     "epochs": 100,
     "n_layer": 2,
     "n_dim": 64,
-    "batch_size": 1,
-    "epoch": 1,
+    "batch_size": 1024,
+    "epoch": 20,
 }
