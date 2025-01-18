@@ -3,9 +3,12 @@ import pandas as pd
 import numpy as np
 from config import *
 from torch.utils.data import Dataset, DataLoader
-
+from diffusers import DDPMScheduler
 import scipy.sparse as sp
 from jax.experimental import sparse
+
+
+TOTAL_TIMESTEPS = conf["timesteps"]
 
 
 def get_pairs(file_path):
@@ -60,6 +63,7 @@ def jax_sp_graph2list(graph):
     idx = idx.T
     return idx
 
+
 def csr_sp_graph2list(graph):
     graph = graph.tocoo()
     indices = np.array([graph.row, graph.col]).T
@@ -78,17 +82,20 @@ def make_sp_diag_mat(n):
 
 
 class DiffusionScheduler:
+    '''
+    replicate & simplified code from diffusers.DDPMScheduler
+    '''
     def __init__(
             self,
-            num_train_timesteps=1000,
-            beta_start=0.0001,
-            beta_end=0.02
+            num_train_timesteps=TOTAL_TIMESTEPS,
+            beta_start=0,
+            beta_end=1
     ):
         super().__init__()
         self.betas = jnp.linspace(beta_start, beta_end, num_train_timesteps)
         self.alphas = 1 - self.betas
         self.alphas_cumprod = jnp.cumprod(self.alphas, axis=0)
-        
+        self.timesteps = jnp.arange(0, num_train_timesteps)[::-1] + 1
 
     def add_noise(
             self,
@@ -96,19 +103,17 @@ class DiffusionScheduler:
             noise,
             timesteps,
     ):
-        
-        sqrt_alpha_prod = self.alphas_cumprod[timesteps] ** 0.5
-        sqrt_alpha_prod = sqrt_alpha_prod.flatten()
-        while len(sqrt_alpha_prod.shape) < len(original_samples.shape):
-            sqrt_alpha_prod = jnp.expand_dims(sqrt_alpha_prod, -1)
+        noisy_input = original_samples * (1-self.betas[timesteps]) + noise * self.betas[timesteps]
+        return noisy_input
 
-        sqrt_one_minus_alpha_prod = (1. - self.alphas_cumprod[timesteps]) ** 0.5
-        sqrt_one_minus_alpha_prod = sqrt_one_minus_alpha_prod.flatten()
-        while len(sqrt_one_minus_alpha_prod.shape) < len(original_samples.shape):
-            sqrt_one_minus_alpha_prod = jnp.expand_dims(sqrt_one_minus_alpha_prod, -1)
-
-        noisy_sample = sqrt_alpha_prod * original_samples + sqrt_one_minus_alpha_prod * noise
-        return noisy_sample
+    def step(
+            self,
+            model_output,
+            time_step,
+            post_output,      
+    ):
+        prev_pred = post_output * (1-1/time_step) + model_output * (1/time_step)
+        return prev_pred
 
 
 '''
@@ -134,8 +139,9 @@ class TestData():
         self.ub_mask_graph = list2csr_sp_graph(self.ub_mask_pairs, (self.num_user, self.num_bundle))
 
     def __getitem__(self, index):
-        prob_iids = np.array(self.ui_graph[self.test_uid[index]]).reshape(-1)
-        return index, prob_iids
+        uid = self.test_uid[index]
+        prob_iids = np.array(self.ui_graph[uid].todense(), dtype=np.float32).reshape(-1)
+        return uid, prob_iids
 
     def __len__(self):
         return len(self.test_uid)
@@ -168,6 +174,7 @@ class TrainData(Dataset):
         self.zeros_prob_iids = np.zeros((self.num_item,), dtype=np.float32)
 
     def __getitem__(self, index):
+        uid = index
         prob_iids = np.array(self.ui_graph[index].todense(), dtype=np.float32).reshape(-1)
         bun_idx = self.ub_graph[index].nonzero()[1]
         if len(bun_idx) > 0:
@@ -175,7 +182,7 @@ class TrainData(Dataset):
             prob_iids_bundle = np.array(self.bi_graph[rand_bun_id].todense(), dtype=np.float32).reshape(-1)
         else:
             prob_iids_bundle = self.zeros_prob_iids
-        return index, prob_iids, prob_iids_bundle
+        return uid, prob_iids, prob_iids_bundle
 
     def __len__(self):
         return self.num_user

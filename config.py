@@ -6,4 +6,5 @@ conf = {
     "n_dim": 64,
     "batch_size": 1024,
     "epoch": 20,
+    "timesteps": 100,
 }

@@ -146,33 +146,6 @@ class Net(nn.Module):
         users_feat = self.user_emb[uids]
         in_feat = jnp.concat([users_feat, prob_iids_bundle], axis=1)
         out_feat = self.mlp(in_feat, prob_iids)
-        return out_feat
+        # return out_feat
+        return prob_iids
     
-# Youshu
-# Recall@1: 0.0024061751452623434
-# Precision@1: 0.007028504490433424
-# NDCG@1: 0.0070285043
-# Recall@2: 0.004415460768592321
-# Precision@2: 0.007223740726278798
-# NDCG@2: 0.0075769755
-# Recall@3: 0.005186490064993961
-# Precision@3: 0.005857087075361187
-# NDCG@3: 0.007292046
-# Recall@5: 0.008498846825820354
-# Precision@5: 0.006013276064037485
-# NDCG@5: 0.0085358
-# Recall@10: 0.015737290618651003
-# Precision@10: 0.005661850839515814
-# NDCG@10: 0.011152425
-# Recall@20: 0.022220992778953324
-# Precision@20: 0.003982819211245607
-# NDCG@20: 0.012984116
-# Recall@40: 0.03319864650706107
-# Precision@40: 0.0032897305739945336
-# NDCG@40: 0.016294852
-# Recall@50: 0.038119055747622324
-# Precision@50: 0.003170636470128856
-# NDCG@50: 0.017740801
-
-
-# iFashion

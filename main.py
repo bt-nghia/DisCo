@@ -13,7 +13,7 @@ from flax.training import train_state
 from diffusers import DDPMScheduler
 from utils import DiffusionScheduler
 
-TOTAL_TIME_STEPS = 50
+TOTAL_TIMESTEPS = conf["timesteps"]
 INF = 1e8
 
 
@@ -85,20 +85,19 @@ def train_step(state, uids, prob_iids, noisy_prob_iids_bundle, prob_iids_bundle)
     return state, loss, aux_dict
 
 
-def train(state, dataloader, epochs, device, key):
+def train(state, dataloader, noise_scheduler, epochs, device, key):
     print("TRAINING")
-    noise_scheduler = DiffusionScheduler(num_train_timesteps=TOTAL_TIME_STEPS)
 
     for epoch in range(epochs):
         pbar = tqdm(dataloader)
         for uids, prob_iids, prob_iids_bundle in pbar:
             uids = jnp.array(uids, dtype=jnp.int32)
-            prob_iids = jnp.array(prob_iids, dtype=jnp.float32)
-            prob_iids_bundle = jnp.array(prob_iids_bundle, dtype=jnp.float32)
+            prob_iids = jnp.array(prob_iids)
+            prob_iids_bundle = jnp.array(prob_iids_bundle)
 
             randkey, timekey, key = jax.random.split(key, num=3)
             noise = jax.random.normal(randkey, shape=prob_iids_bundle.shape)
-            timesteps = jax.random.randint(timekey, (prob_iids_bundle.shape[0],), minval=0, maxval=TOTAL_TIME_STEPS-1)
+            timesteps = jax.random.randint(timekey, (prob_iids_bundle.shape[0],), minval=0, maxval=TOTAL_TIMESTEPS-1)
 
             noisy_prob_iids_bundle = noise_scheduler.add_noise(prob_iids, noise, timesteps)
             state, loss, aux_dict = jax.jit(train_step, device=device)(state, uids, prob_iids, noisy_prob_iids_bundle, prob_iids_bundle)
@@ -106,30 +105,24 @@ def train(state, dataloader, epochs, device, key):
     return state
 
 
-def inference(model, state, test_dataloader, key, n_item):
+def inference(model, state, test_dataloader, noise_scheduler, key, n_item):
     #TODO (bt-nghia): fix inference loop over timesteps
     print("INFERENCE")
     all_genbundles = []
     for test_data in test_dataloader:
         key, rand_key = jax.random.split(key)
         uids, prob_iids = test_data
-        # uids = jnp.array(uids, dtype=jnp.int32)
-        uids = jnp.array(uids)
-        noisy_iids = jax.random.normal(rand_key, shape=(uids.shape[0], n_item))
+        uids = jnp.array(uids, dtype=jnp.int32)
+        prob_iids = jnp.array(prob_iids)
+        noisy_prob_iids_bundle = jax.random.uniform(rand_key, shape=(uids.shape[0], n_item))
 
-        # prev_prob_iids = []
-        # prev_step = [noisy_iids]
-        # for i in range(TOTAL_TIME_STEPS):
-        #     denoised_prob_iids = state.apply_fn(state.params, uids = uids, prob_iids=noisy_iids)
-        #     prev_prob_iids.append(denoised_prob_iids)
-        #     mix_factor = 1 / (TOTAL_TIME_STEPS - i)
-        #     noisy_iids = noisy_iids * (1-mix_factor) + denoised_prob_iids * mix_factor # polyak update
-        #     prev_step.append(noisy_iids)
+        post_prob_iids_bundle = [noisy_prob_iids_bundle]
+        for i, t in enumerate(noise_scheduler.timesteps):
+            model_output = model.apply(state.params, uids, prob_iids, post_prob_iids_bundle[-1])
+            prev_prob_iids_bundle = noise_scheduler.step(model_output, t, post_prob_iids_bundle[-1])
+            post_prob_iids_bundle.append(prev_prob_iids_bundle)
 
-        # gen_bundles = state.apply_fn(state.params, uids=uids, probs_iids=noisy_iids, method=model.__call__)\
-        gen_bundles = state.apply_fn(state.params, uids=uids, prob_iids=prob_iids, method=model.__call__)
-        # all_genbundles.append(prev_prob_iids[-1])
-        all_genbundles.append(gen_bundles)
+        all_genbundles.append(prev_prob_iids_bundle)
     all_genbundles = np.concatenate(all_genbundles, axis=0)
     return all_genbundles
 
@@ -200,8 +193,6 @@ def main():
     """
     train_data = TrainData(conf)        
     test_data = TestData(conf, "test")
-
-
     """
     Main Model & Optimizer, Train State
     """
@@ -214,33 +205,33 @@ def main():
     print(f"MODEL NAME: {conf['model_name']}")
     print(f"DATACLASS: {train_data.__class__.__name__}, {test_data.__class__.__name__}")
     params = model.init(rng_model, sample_uids, sample_prob_iids, sample_prob_iids_bundle)
-
     optimizer = optax.adam(learning_rate=1e-3)
+
+    state = train_state.TrainState.create(apply_fn=model.apply,
+                                          params=params,
+                                          tx=optimizer)
+    noise_scheduler = DiffusionScheduler(num_train_timesteps=TOTAL_TIMESTEPS)
+
     dataloader = DataLoader(train_data,
                             batch_size=conf["batch_size"],
                             # shuffle=True,
                             shuffle=True,
                             drop_last=False)
+    
+    test_dataloader = DataLoader(test_data, 
+                                 batch_size=conf["batch_size"], 
+                                 shuffle=False,
+                                 drop_last=False)
 
-    state = train_state.TrainState.create(apply_fn=model.apply,
-                                          params=params,
-                                          tx=optimizer)
     """
     Training & Save checkpoint
     """
-    # logits = state.apply_fn(state.params, sample_uids, sample_prob_iids, sample_prob_iids_bundle)
-    state = train(state, dataloader, conf["epoch"], device, rng_gen)
-    # exit()
+    # state = train(state, dataloader, noise_scheduler, conf["epoch"], device, rng_gen)
     """
     Generate & Evaluate
     """
-    # test_dataloader = DataLoader(test_data, 
-    #                              batch_size=conf["batch_size"], 
-    #                              shuffle=False,
-    #                              drop_last=False)
-    
-    # generated_bundles_test = inference(model, state, test_dataloader, rng_infer, conf["n_item"])
-    # eval(conf, train_data, test_data, generated_bundles_test)
+    generated_bundles_test = inference(model, state, test_dataloader, noise_scheduler, rng_infer, conf["n_item"])
+    eval(conf, train_data, test_data, generated_bundles_test)
 
 
 if __name__ == "__main__":
