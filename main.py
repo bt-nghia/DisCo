@@ -116,13 +116,12 @@ def inference(model, state, test_dataloader, noise_scheduler, key, n_item):
         prob_iids = jnp.array(prob_iids, jnp.float32)
         noisy_prob_iids_bundle = jax.random.normal(rand_key, shape=(uids.shape[0], n_item))
 
-        post_prob_iids_bundle = [noisy_prob_iids_bundle]
+        post_prob_iids_bundle = noisy_prob_iids_bundle
         for i, t in enumerate(noise_scheduler.timesteps):
-            model_output = model.apply(state.params, uids, prob_iids, post_prob_iids_bundle[-1])
-            prev_prob_iids_bundle = noise_scheduler.step(model_output, t, post_prob_iids_bundle[-1])
-            post_prob_iids_bundle.append(prev_prob_iids_bundle)
+            model_output = model.apply(state.params, uids, prob_iids, post_prob_iids_bundle)
+            post_prob_iids_bundle = noise_scheduler.step(model_output, t, post_prob_iids_bundle)
 
-        all_genbundles.append(prev_prob_iids_bundle)
+        all_genbundles.append(post_prob_iids_bundle)
     all_genbundles = np.concatenate(all_genbundles, axis=0)
     return all_genbundles
 
