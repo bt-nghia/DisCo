@@ -92,8 +92,8 @@ def train(state, dataloader, noise_scheduler, epochs, device, key):
         pbar = tqdm(dataloader)
         for uids, prob_iids, prob_iids_bundle in pbar:
             uids = jnp.array(uids, dtype=jnp.int32)
-            prob_iids = jnp.array(prob_iids)
-            prob_iids_bundle = jnp.array(prob_iids_bundle)
+            prob_iids = jnp.array(prob_iids, dtype=jnp.float32)
+            prob_iids_bundle = jnp.array(prob_iids_bundle, jnp.float32)
 
             randkey, timekey, key = jax.random.split(key, num=3)
             noise = jax.random.normal(randkey, shape=prob_iids_bundle.shape)
@@ -113,7 +113,7 @@ def inference(model, state, test_dataloader, noise_scheduler, key, n_item):
         key, rand_key = jax.random.split(key)
         uids, prob_iids = test_data
         uids = jnp.array(uids, dtype=jnp.int32)
-        prob_iids = jnp.array(prob_iids)
+        prob_iids = jnp.array(prob_iids, jnp.float32)
         noisy_prob_iids_bundle = jax.random.normal(rand_key, shape=(uids.shape[0], n_item))
 
         post_prob_iids_bundle = [noisy_prob_iids_bundle]

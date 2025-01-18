@@ -141,7 +141,7 @@ class TestData():
 
     def __getitem__(self, index):
         uid = self.test_uid[index]
-        prob_iids = np.array(self.ui_graph[uid].todense(), dtype=np.float32).reshape(-1)
+        prob_iids = np.array(self.ui_graph[uid].todense()).reshape(-1)
         return uid, prob_iids
 
     def __len__(self):
@@ -172,15 +172,15 @@ class TrainData(Dataset):
         self.bi_graph = list2csr_sp_graph(self.bi_pairs, (self.num_bundle, self.num_item))
 
         self.uibi_graph = self.ui_graph + self.ub_graph @ self.bi_graph
-        self.zeros_prob_iids = np.zeros((self.num_item,), dtype=np.float32)
+        self.zeros_prob_iids = np.zeros((self.num_item,))
 
     def __getitem__(self, index):
         uid = index
-        prob_iids = np.array(self.ui_graph[index].todense(), dtype=np.float32).reshape(-1)
+        prob_iids = np.array(self.ui_graph[index].todense()).reshape(-1)
         bun_idx = self.ub_graph[index].nonzero()[1]
         if len(bun_idx) > 0:
             rand_bun_id = np.random.choice(bun_idx)
-            prob_iids_bundle = np.array(self.bi_graph[rand_bun_id].todense(), dtype=np.float32).reshape(-1)
+            prob_iids_bundle = np.array(self.bi_graph[rand_bun_id].todense()).reshape(-1)
         else:
             prob_iids_bundle = self.zeros_prob_iids
         return uid, prob_iids, prob_iids_bundle
