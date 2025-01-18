@@ -73,57 +73,63 @@ def cal_metrics(
     return recall_cnt.sum(), pre_cnt.sum(), ndcg_cnt.sum()
 
 
-def train_step(state, uids, noisy_iids, iids):
-    def mse_loss_fn(params, noisy_iids, iids):
-        logits = state.apply_fn(params, uids, noisy_iids)
-        loss = jnp.mean((logits - iids)**2)
+def train_step(state, uids, prob_iids, noisy_prob_iids_bundle, prob_iids_bundle):
+    def mse_loss_fn(params, uids, prob_iids, noisy_prob_iids_bundle, prob_iids_bundle):
+        logits = state.apply_fn(params, uids, prob_iids, noisy_prob_iids_bundle)
+        loss = jnp.mean((logits - prob_iids_bundle)**2)
         return loss, {"loss": loss}
 
-    aux, grads = jax.value_and_grad(mse_loss_fn, has_aux=True)(state.params, noisy_iids, iids)
+    aux, grads = jax.value_and_grad(mse_loss_fn, has_aux=True)(state.params, uids, prob_iids, noisy_prob_iids_bundle, prob_iids_bundle)
     state = state.apply_gradients(grads=grads)
     loss, aux_dict = aux
     return state, loss, aux_dict
 
 
 def train(state, dataloader, epochs, device, key):
+    print("TRAINING")
     noise_scheduler = DiffusionScheduler(num_train_timesteps=TOTAL_TIME_STEPS)
 
     for epoch in range(epochs):
         pbar = tqdm(dataloader)
-        for uids, prob_iids in pbar:
+        for uids, prob_iids, prob_iids_bundle in pbar:
             uids = jnp.array(uids, dtype=jnp.int32)
-            prob_iids = jnp.array(prob_iids)
-            randkey, timekey, key = jax.random.split(key, num=3)
-            noise = jax.random.normal(randkey, shape=prob_iids.shape)
-            timesteps = jax.random.randint(timekey, (prob_iids.shape[0],), minval=0, maxval=999)
+            prob_iids = jnp.array(prob_iids, dtype=jnp.float32)
+            prob_iids_bundle = jnp.array(prob_iids_bundle, dtype=jnp.float32)
 
-            noisy_iids = noise_scheduler.add_noise(prob_iids, noise, timesteps)
-            state, loss, aux_dict = jax.jit(train_step, device=device)(state, uids, noisy_iids, prob_iids)
+            randkey, timekey, key = jax.random.split(key, num=3)
+            noise = jax.random.normal(randkey, shape=prob_iids_bundle.shape)
+            timesteps = jax.random.randint(timekey, (prob_iids_bundle.shape[0],), minval=0, maxval=TOTAL_TIME_STEPS-1)
+
+            noisy_prob_iids_bundle = noise_scheduler.add_noise(prob_iids, noise, timesteps)
+            state, loss, aux_dict = jax.jit(train_step, device=device)(state, uids, prob_iids, noisy_prob_iids_bundle, prob_iids_bundle)
             pbar.set_description("epoch: %i loss: %.4f" % (epoch, loss))
     return state
 
 
 def inference(model, state, test_dataloader, key, n_item):
     #TODO (bt-nghia): fix inference loop over timesteps
+    print("INFERENCE")
     all_genbundles = []
     for test_data in test_dataloader:
         key, rand_key = jax.random.split(key)
-        uids = test_data
+        uids, prob_iids = test_data
         # uids = jnp.array(uids, dtype=jnp.int32)
         uids = jnp.array(uids)
         noisy_iids = jax.random.normal(rand_key, shape=(uids.shape[0], n_item))
 
-        prev_prob_iids = []
-        prev_step = [noisy_iids]
-        for i in range(TOTAL_TIME_STEPS):
-            denoised_prob_iids = state.apply_fn(state.params, uids = uids, prob_iids=noisy_iids)
-            prev_prob_iids.append(denoised_prob_iids)
-            mix_factor = 1 / (TOTAL_TIME_STEPS - i)
-            noisy_iids = noisy_iids * (1-mix_factor) + denoised_prob_iids * mix_factor # polyak update
-            prev_step.append(noisy_iids)
+        # prev_prob_iids = []
+        # prev_step = [noisy_iids]
+        # for i in range(TOTAL_TIME_STEPS):
+        #     denoised_prob_iids = state.apply_fn(state.params, uids = uids, prob_iids=noisy_iids)
+        #     prev_prob_iids.append(denoised_prob_iids)
+        #     mix_factor = 1 / (TOTAL_TIME_STEPS - i)
+        #     noisy_iids = noisy_iids * (1-mix_factor) + denoised_prob_iids * mix_factor # polyak update
+        #     prev_step.append(noisy_iids)
 
-        # gen_bundles = state.apply_fn(state.params, uids=uids, probs_iids=noisy_iids, method=model.__call__)
-        all_genbundles.append(prev_prob_iids[-1])
+        # gen_bundles = state.apply_fn(state.params, uids=uids, probs_iids=noisy_iids, method=model.__call__)\
+        gen_bundles = state.apply_fn(state.params, uids=uids, prob_iids=prob_iids, method=model.__call__)
+        # all_genbundles.append(prev_prob_iids[-1])
+        all_genbundles.append(gen_bundles)
     all_genbundles = np.concatenate(all_genbundles, axis=0)
     return all_genbundles
 
@@ -200,17 +206,19 @@ def main():
     Main Model & Optimizer, Train State
     """
     sample_uids = jnp.array([0])
-    sample_placeholder = jnp.empty((1, conf["n_item"]))
+    sample_prob_iids = jnp.empty((1, conf["n_item"]))
+    sample_prob_iids_bundle = jnp.empty((1, conf["n_item"]))
     model = Net(conf)
 
     conf["model_name"] = model.__class__.__name__
     print(f"MODEL NAME: {conf['model_name']}")
     print(f"DATACLASS: {train_data.__class__.__name__}, {test_data.__class__.__name__}")
-    params = model.init(rng_model, sample_uids, sample_placeholder)
+    params = model.init(rng_model, sample_uids, sample_prob_iids, sample_prob_iids_bundle)
 
     optimizer = optax.adam(learning_rate=1e-3)
     dataloader = DataLoader(train_data,
                             batch_size=conf["batch_size"],
+                            # shuffle=True,
                             shuffle=True,
                             drop_last=False)
 
@@ -220,19 +228,19 @@ def main():
     """
     Training & Save checkpoint
     """
-    logits = state.apply_fn(state.params, sample_uids, sample_placeholder)
+    # logits = state.apply_fn(state.params, sample_uids, sample_prob_iids, sample_prob_iids_bundle)
     state = train(state, dataloader, conf["epoch"], device, rng_gen)
     # exit()
     """
     Generate & Evaluate
     """
-    test_dataloader = DataLoader(test_data, 
-                                 batch_size=conf["batch_size"], 
-                                 shuffle=False,
-                                 drop_last=False)
+    # test_dataloader = DataLoader(test_data, 
+    #                              batch_size=conf["batch_size"], 
+    #                              shuffle=False,
+    #                              drop_last=False)
     
-    generated_bundles_test = inference(model, state, test_dataloader, rng_infer, conf["n_item"])
-    eval(conf, train_data, test_data, generated_bundles_test)
+    # generated_bundles_test = inference(model, state, test_dataloader, rng_infer, conf["n_item"])
+    # eval(conf, train_data, test_data, generated_bundles_test)
 
 
 if __name__ == "__main__":

@@ -77,76 +77,6 @@ def make_sp_diag_mat(n):
     return jax_sp_diag_mat
 
 
-'''
-Generation Dataloader
-'''
-class TestData():
-    def __init__(self, conf, task="test"):
-        super().__init__()
-        self.conf = conf
-        self.num_user = self.conf["n_user"]
-        self.num_item = self.conf["n_item"]
-        self.num_bundle = self.conf["n_bundle"]
-
-        self.ui_pairs = get_pairs(f"{self.conf['data_path']}/{self.conf['dataset']}/user_item.txt")
-        self.ub_pairs = get_pairs(f"{self.conf['data_path']}/{self.conf['dataset']}/user_bundle_{task}.txt")
-        self.bi_pairs = get_pairs(f"{self.conf['data_path']}/{self.conf['dataset']}/bundle_item.txt")
-        self.ub_mask_pairs = get_pairs(f"{self.conf['data_path']}/{self.conf['dataset']}/user_bundle_train.txt")
-
-        self.ui_graph = list2csr_sp_graph(self.ui_pairs, (self.num_user, self.num_item))
-        self.ub_graph = list2csr_sp_graph(self.ub_pairs, (self.num_user, self.num_bundle))
-        self.bi_graph = list2csr_sp_graph(self.bi_pairs, (self.num_bundle, self.num_item))
-        self.test_uid = self.ub_graph.sum(axis=1).nonzero()[0]
-        self.ub_mask_graph = list2csr_sp_graph(self.ub_mask_pairs, (self.num_user, self.num_bundle))
-
-        # self.ubi_ui_graph = self.ub_mask_graph @ self.bi_graph + self.ui_graph * 0 > 0
-
-    def __getitem__(self, index):
-        # test_uid_input = np.array(self.ui_graph[self.test_uid[index]].todense())
-        # test_mat = self.ui_graph[self.test_uid[index]].tocsr()
-        # test_mat.data[30:] = 0
-        # print(test_mat.nonzero()[1])
-        # test_uid_input = np.array(test_mat.todense())
-        # print(test_mat.data)
-        # print(test_uid_input.sum())
-        # print(self.ui_graph[self.test_uid[index]].nonzero()[1])
-        # exit()
-        # test_uid_input = np.array(self.ubi_ui_graph[self.test_uid[index]].todense())
-        # test_uid_input = test_uid_input.reshape(-1)
-        # return index, test_uid_input
-        return index
-
-    def __len__(self):
-        return len(self.test_uid)
-    
-
-class TrainData(Dataset):
-    def __init__(self, conf):
-        super().__init__()
-        self.conf = conf
-        # we use bundle id to easily link bundle to user for train and test purpose 
-        self.num_user = self.conf["n_user"]
-        self.num_item = self.conf["n_item"]
-        self.num_bundle = self.conf["n_bundle"]
-
-        self.ui_pairs = get_pairs(f"{self.conf['data_path']}/{self.conf['dataset']}/user_item.txt")
-        self.ub_pairs = get_pairs(f"{self.conf['data_path']}/{self.conf['dataset']}/user_bundle_train.txt")
-        self.bi_pairs = get_pairs(f"{self.conf['data_path']}/{self.conf['dataset']}/bundle_item.txt")
-
-        self.ui_graph = list2csr_sp_graph(self.ui_pairs, (self.num_user, self.num_item))
-        self.ub_graph = list2csr_sp_graph(self.ub_pairs, (self.num_user, self.num_bundle))
-        self.bi_graph = list2csr_sp_graph(self.bi_pairs, (self.num_bundle, self.num_item))
-
-        self.uibi_graph = self.ui_graph + self.ub_graph @ self.bi_graph
-
-    def __getitem__(self, index):
-        prob_iids = np.array(self.ui_graph[index].todense()).reshape(-1)
-        return index, prob_iids
-
-    def __len__(self):
-        return self.num_user
-    
-
 class DiffusionScheduler:
     def __init__(
             self,
@@ -179,3 +109,74 @@ class DiffusionScheduler:
 
         noisy_sample = sqrt_alpha_prod * original_samples + sqrt_one_minus_alpha_prod * noise
         return noisy_sample
+
+
+'''
+Generation Dataloader
+'''
+class TestData():
+    def __init__(self, conf, task="test"):
+        super().__init__()
+        self.conf = conf
+        self.num_user = self.conf["n_user"]
+        self.num_item = self.conf["n_item"]
+        self.num_bundle = self.conf["n_bundle"]
+
+        self.ui_pairs = get_pairs(f"{self.conf['data_path']}/{self.conf['dataset']}/user_item.txt")
+        self.ub_pairs = get_pairs(f"{self.conf['data_path']}/{self.conf['dataset']}/user_bundle_{task}.txt")
+        self.bi_pairs = get_pairs(f"{self.conf['data_path']}/{self.conf['dataset']}/bundle_item.txt")
+        self.ub_mask_pairs = get_pairs(f"{self.conf['data_path']}/{self.conf['dataset']}/user_bundle_train.txt")
+
+        self.ui_graph = list2csr_sp_graph(self.ui_pairs, (self.num_user, self.num_item))
+        self.ub_graph = list2csr_sp_graph(self.ub_pairs, (self.num_user, self.num_bundle))
+        self.bi_graph = list2csr_sp_graph(self.bi_pairs, (self.num_bundle, self.num_item))
+        self.test_uid = self.ub_graph.sum(axis=1).nonzero()[0]
+        self.ub_mask_graph = list2csr_sp_graph(self.ub_mask_pairs, (self.num_user, self.num_bundle))
+
+    def __getitem__(self, index):
+        prob_iids = np.array(self.ui_graph[self.test_uid[index]]).reshape(-1)
+        return index, prob_iids
+
+    def __len__(self):
+        return len(self.test_uid)
+    
+
+class TrainData(Dataset):
+    """
+    return 
+    user id -> for personalize
+    item prob -> for guidance
+    item (bundle) -> for denoised
+    """
+    def __init__(self, conf):
+        super().__init__()
+        self.conf = conf
+        # we use bundle id to easily link bundle to user for train and test purpose 
+        self.num_user = self.conf["n_user"]
+        self.num_item = self.conf["n_item"]
+        self.num_bundle = self.conf["n_bundle"]
+
+        self.ui_pairs = get_pairs(f"{self.conf['data_path']}/{self.conf['dataset']}/user_item.txt")
+        self.ub_pairs = get_pairs(f"{self.conf['data_path']}/{self.conf['dataset']}/user_bundle_train.txt")
+        self.bi_pairs = get_pairs(f"{self.conf['data_path']}/{self.conf['dataset']}/bundle_item.txt")
+
+        self.ui_graph = list2csr_sp_graph(self.ui_pairs, (self.num_user, self.num_item))
+        self.ub_graph = list2csr_sp_graph(self.ub_pairs, (self.num_user, self.num_bundle))
+        self.bi_graph = list2csr_sp_graph(self.bi_pairs, (self.num_bundle, self.num_item))
+
+        self.uibi_graph = self.ui_graph + self.ub_graph @ self.bi_graph
+        self.zeros_prob_iids = np.zeros((self.num_item,), dtype=np.float32)
+
+    def __getitem__(self, index):
+        prob_iids = np.array(self.ui_graph[index].todense(), dtype=np.float32).reshape(-1)
+        bun_idx = self.ub_graph[index].nonzero()[1]
+        if len(bun_idx) > 0:
+            rand_bun_id = np.random.choice(bun_idx)
+            prob_iids_bundle = np.array(self.bi_graph[rand_bun_id].todense(), dtype=np.float32).reshape(-1)
+        else:
+            prob_iids_bundle = self.zeros_prob_iids
+        return index, prob_iids, prob_iids_bundle
+
+    def __len__(self):
+        return self.num_user
+    
