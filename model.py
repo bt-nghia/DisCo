@@ -139,119 +139,12 @@ class PredLayer(nn.Module):
         out = self.lin(X) + residual_feat
         logits = nn.sigmoid(out)
         return logits
-    
-
-class AdaptiveRanking(nn.Module):
-    '''
-    same architecture with minor differences as CrossCBR and CoHEAT 
-    '''
-    conf: dict
-    ub_graph: sp.coo_matrix
-    ui_graph: sp.coo_matrix
-    bi_graph: sp.coo_matrix
-
-    def setup(self):
-        self.user_emb = self.param('user_emb', 
-                                   init_fn=nn.initializers.xavier_uniform(), 
-                                   shape=(self.conf["n_user"], self.conf["n_dim"]))
-        self.item_emb = self.param('item_emb',
-                                   init_fn=nn.initializers.xavier_uniform(), 
-                                   shape=(self.conf["n_item"], self.conf["n_dim"]))
-        self.bundle_emb = self.param('bundle_emb',
-                                     init_fn=nn.initializers.xavier_uniform(), 
-                                     shape=(self.conf["n_bundle"], self.conf["n_dim"]))
-        self.ub_prop_graph, self.ui_prop_graph, self.bi_prop_graph = self.get_propagate_graph()
-
-    def get_propagate_graph(self):
-        # [[uu, ub], [bu, bb]]: [(u+b) x (u+b)]
-        ub_propagate_graph = sp.bmat([[sp.coo_matrix((self.ub_graph.shape[0], self.ub_graph.shape[0])), self.ub_graph],
-                                      [self.ub_graph.T, sp.coo_matrix((self.ub_graph.shape[1], self.ub_graph.shape[1]))]])
-        ub_propagate_graph = sparse.BCOO.from_scipy_sparse(laplace_norm(ub_propagate_graph))
-        # [[uu, ui], [iu, ii]]: [(u+i) x (u+i)]
-        ui_propagate_graph = sp.bmat([[sp.coo_matrix((self.ui_graph.shape[0], self.ui_graph.shape[0])), self.ui_graph],
-                                      [self.ui_graph.T, sp.coo_matrix((self.ui_graph.shape[1], self.ui_graph.shape[1]))]])
-        ui_propagate_graph = sparse.BCOO.from_scipy_sparse(laplace_norm(ui_propagate_graph))
-        # [bi]: [bxi]
-        # print(self.bi_graph.sum())
-        bi_propagate_graph = sp.diags(1 / (self.bi_graph.sum(axis=1).A.ravel() + 1e-8)) @ self.bi_graph
-        bi_propagate_graph = sparse.BCOO.from_scipy_sparse(bi_propagate_graph)
-        # print(ui_propagate_graph.sum(), ub_propagate_graph.sum(), bi_propagate_graph.sum())
-        # exit()
-        return ub_propagate_graph, ui_propagate_graph, bi_propagate_graph
-
-    def level_propagate(self, feat1, feat2, graph, num_layers=1):
-        features = jnp.concatenate([feat1, feat2], axis=0)
-        all_features = [features]
-        for i in range(0, num_layers):
-            features = graph @ features
-            features = features / (i+2)
-            features = normalize(features)
-            all_features.append(features)
-        all_features = jnp.stack(all_features, axis=1)
-        all_features = jnp.mean(all_features, axis=1)
-        feat1, feat2 = jnp.split(all_features, [feat1.shape[0]], axis=0)
-        return feat1, feat2
-
-    def propagate(self):
-        # propagate bundle level
-        u_blevel, b_blevel = self.level_propagate(self.user_emb, self.bundle_emb, self.ub_prop_graph, 1)
-        # propagate item level
-        u_ilevel, i_ilevel = self.level_propagate(self.user_emb, self.item_emb, self.ui_prop_graph, 1)
-        # mean pooling
-        b_ilevel = self.bi_prop_graph @ i_ilevel
-        u_feats = [u_blevel, u_ilevel]
-        b_feats = [b_blevel, b_ilevel]
-        return u_feats, b_feats
-    
-    def cal_c_loss(self, pos, aug, c_temp=0.25):
-        pos = normalize(pos)
-        aug = normalize(aug)
-
-        pos_score = jnp.sum(pos * aug, axis=1)
-        ttl_score = pos @ aug.T
-
-        pos_score = jnp.exp(pos_score / c_temp)
-        ttl_score = jnp.sum(jnp.exp(ttl_score) / c_temp, axis=1)
-        c_loss = -jnp.mean(jnp.log(pos_score / ttl_score))
-        return c_loss
-     
-    def __call__(self, x):
-        u_feats, b_feats = self.propagate()
-        '''
-        x  [[uid,...], 
-            [pbid,...], 
-            [nbid,...]]
-        '''
-        # print(x)
-        uid, pbid, nbid = x[0], x[1], x[2]
-        u1, u2 = [i[uid] for i in u_feats]
-        b1, b2 = [i[pbid] for i in b_feats]
-        b3, b4 = [i[nbid] for i in b_feats]
-
-        # u_closs = self.cal_c_loss(u_feats[0], u_feats[1])
-        # b_closs = self.cal_c_loss(b_feats[0], b_feats[1])
-        # c_loss = (u_closs + b_closs) / 2
-
-        pos_score = jnp.sum(u1 * b1 + u2 * b2, axis=1)
-        neg_score = jnp.sum(u1 * b3 + u2 * b4, axis=1)
-        loss = -jnp.log(nn.sigmoid(pos_score - neg_score)).mean()
-        # return loss + c_loss * 0.04
-        return loss
-        
-    def eval(self, x):
-        u_feats, b_feats = self.propagate()
-        '''
-        x [uid, ...]
-        '''
-        uid = x
-        u1, u2 = [i[uid] for i in u_feats]
-        b1, b2 = b_feats
-        score = u1 @ b1.T + u2 @ b2.T
-        return score
 
 
 class Net(nn.Module):
     conf: dict
+    ui_graph: sp.coo_matrix
+
 
     def setup(self):
         self.n_users = self.conf["n_user"]
@@ -272,6 +165,27 @@ class Net(nn.Module):
         self.enc = nn.Dense(self.hidden_dim,
                             kernel_init=nn.initializers.xavier_uniform(),
                             bias_init=nn.initializers.zeros)
+        
+        self.ui_propagate_graph = self.get_propagate_graph()
+        
+    def get_propagate_graph(self):
+        ui_propagate_graph = sp.bmat([[sp.coo_matrix((self.ui_graph.shape[0], self.ui_graph.shape[0])), self.ui_graph],
+                                      [self.ui_graph.T, sp.coo_matrix((self.ui_graph.shape[1], self.ui_graph.shape[1]))]])
+        ui_propagate_graph = sparse.BCOO.from_scipy_sparse(laplace_norm(ui_propagate_graph))
+        return ui_propagate_graph
+    
+    def propagate(self, num_layers=2):
+        features = jnp.concatenate([self.user_emb, self.item_emb], axis=0)
+        all_features = [features]
+        for i in range(0, num_layers):
+            features = self.ui_propagate_graph @ features
+            features = features / (i+2)
+            features = normalize(features)
+            all_features.append(features)
+        all_features = jnp.stack(all_features, axis=1)
+        all_features = jnp.mean(all_features, axis=1)
+        u_feat, i_feat = jnp.split(all_features, [self.n_users], axis=0)
+        return u_feat, i_feat
 
     def __call__(self, uids, prob_iids, prob_iids_bundle):
         """
@@ -280,7 +194,9 @@ class Net(nn.Module):
         prob_iids_bundle: sampled item in interacted bundle probability (noise while inference)
         """
         # print(uids)
-        users_feat = self.user_emb[uids]
+        u_feat, i_feat = self.propagate()
+        # users_feat = self.user_emb[uids]
+        users_feat = u_feat[uids]
         prob_enc = self.enc(prob_iids_bundle)
         in_feat = jnp.concat([users_feat, prob_enc], axis=1)
         out_feat = self.mlp(in_feat, prob_iids)

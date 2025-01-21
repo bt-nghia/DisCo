@@ -198,7 +198,7 @@ def main():
     sample_uids = jnp.array([0])
     sample_prob_iids = jnp.empty((1, conf["n_item"]))
     sample_prob_iids_bundle = jnp.empty((1, conf["n_item"]))
-    model = Net(conf)
+    model = Net(conf, train_data.ui_graph)
 
     conf["model_name"] = model.__class__.__name__
     print(f"MODEL NAME: {conf['model_name']}")
