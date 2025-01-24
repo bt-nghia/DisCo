@@ -244,7 +244,7 @@ def main():
     Generate & Evaluate
     """
     generated_bundles_test = inference(model, state, test_dataloader, noise_scheduler, rng_infer, conf["n_item"])
-    eval(conf, train_data, test_data, generated_bundles_test)
+    eval(conf, test_data, generated_bundles_test)
 
 
 if __name__ == "__main__":
