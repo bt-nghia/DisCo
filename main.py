@@ -78,15 +78,18 @@ def kl_divergence(src, trg):
     return jnp.sum(kl_div)
 
 
+def mse(x, y):
+    return jnp.mean((x-y) ** 2)
+
+
 def train_step(state, uids, prob_iids, noisy_prob_iids_bundle, prob_iids_bundle):
     def loss_fn(params, uids, prob_iids, noisy_prob_iids_bundle, prob_iids_bundle):
         logits = state.apply_fn(params, uids, prob_iids, noisy_prob_iids_bundle)
-        mse_loss = jnp.mean((logits - prob_iids_bundle)**2) # MSE
-        # log
+        mse_loss = mse(logits, prob_iids_bundle) # MSE
 
         slogits = nn.softmax(logits)
         sprob_iids = nn.softmax(prob_iids)
-        kl_loss = kl_divergence(slogits, sprob_iids) # Kullback-Leibler divergence (true probability: prob_iids)
+        kl_loss = kl_divergence(slogits, sprob_iids) # Kullback-Leibler Divergence (true probability: prob_iids)
 
         loss = mse_loss + kl_loss
         return loss, {"loss": loss, "mse": mse_loss, "kl": kl_loss}
