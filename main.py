@@ -142,7 +142,6 @@ def inference(model, state, test_dataloader, noise_scheduler, key, n_item):
 
 
 def eval(conf, test_data, all_gen_buns):
-    nu, nb, ni = conf["n_user"], conf["n_bundle"], conf["n_item"]
     batch_size = conf["batch_size"]
     ui_mat = test_data.ui_graph
     bi_mat = test_data.bi_graph
