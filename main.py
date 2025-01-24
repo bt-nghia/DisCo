@@ -73,13 +73,25 @@ def cal_metrics(
     return recall_cnt.sum(), pre_cnt.sum(), ndcg_cnt.sum()
 
 
-def train_step(state, uids, prob_iids, noisy_prob_iids_bundle, prob_iids_bundle):
-    def mse_loss_fn(params, uids, prob_iids, noisy_prob_iids_bundle, prob_iids_bundle):
-        logits = state.apply_fn(params, uids, prob_iids, noisy_prob_iids_bundle)
-        loss = jnp.mean((logits - prob_iids)**2)
-        return loss, {"loss": loss}
+def kl_divergence(src, trg):
+    kl_div = trg * (jnp.log(trg) - jnp.log(src))
+    return jnp.sum(kl_div)
 
-    aux, grads = jax.value_and_grad(mse_loss_fn, has_aux=True)(state.params, uids, prob_iids, noisy_prob_iids_bundle, prob_iids_bundle)
+
+def train_step(state, uids, prob_iids, noisy_prob_iids_bundle, prob_iids_bundle):
+    def loss_fn(params, uids, prob_iids, noisy_prob_iids_bundle, prob_iids_bundle):
+        logits = state.apply_fn(params, uids, prob_iids, noisy_prob_iids_bundle)
+        mse_loss = jnp.mean((logits - prob_iids_bundle)**2) # MSE
+        # log
+
+        slogits = nn.softmax(logits)
+        sprob_iids = nn.softmax(prob_iids)
+        kl_loss = kl_divergence(slogits, sprob_iids) # Kullback-Leibler divergence (true probability: prob_iids)
+
+        loss = mse_loss + kl_loss
+        return loss, {"loss": loss, "mse": mse_loss, "kl": kl_loss}
+
+    aux, grads = jax.value_and_grad(loss_fn, has_aux=True)(state.params, uids, prob_iids, noisy_prob_iids_bundle, prob_iids_bundle)
     state = state.apply_gradients(grads=grads)
     loss, aux_dict = aux
     return state, loss, aux_dict
@@ -101,7 +113,7 @@ def train(state, dataloader, noise_scheduler, epochs, device, key):
 
             noisy_prob_iids_bundle = noise_scheduler.add_noise(prob_iids_bundle, noise, timesteps)
             state, loss, aux_dict = jax.jit(train_step, device=device)(state, uids, prob_iids, noisy_prob_iids_bundle, prob_iids_bundle)
-            pbar.set_description("epoch: %i loss: %.4f" % (epoch, loss))
+            pbar.set_description("EPOCH: %i LOSS: %.4f KL_LOSS: %.4f MSE_LOSS: %.4f" % (epoch, aux_dict["loss"], aux_dict["kl"], aux_dict["mse"]))
     return state
 
 
