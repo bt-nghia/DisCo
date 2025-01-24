@@ -146,8 +146,8 @@ def eval(conf, train_data, test_data, all_gen_buns):
     batch_size = conf["batch_size"]
     ui_mat = train_data.ui_graph
     bi_mat = train_data.bi_graph
-    ub_mask_graph = train_data.ub_graph
-    ub_mat = test_data.ub_graph
+    ub_mask_graph = train_data.ub_graph_train
+    ub_mat = test_data.ub_graph_test
 
     uids_test = test_data.test_uid
     num_batch = int(len(uids_test) / batch_size)
