@@ -116,7 +116,7 @@ def train(state, dataloader, noise_scheduler, epochs, device, key):
 
             noisy_prob_iids_bundle = noise_scheduler.add_noise(prob_iids_bundle, noise, timesteps)
             state, loss, aux_dict = jax.jit(train_step, device=device)(state, uids, prob_iids, noisy_prob_iids_bundle, prob_iids_bundle)
-            pbar.set_description("EPOCH: %i LOSS: %.4f KL_LOSS: %.4f MSE_LOSS: %.4f" % (epoch, aux_dict["loss"], aux_dict["kl"], aux_dict["mse"]))
+            pbar.set_description("EPOCH: %i | LOSS: %.4f | KL_LOSS: %.4f | MSE_LOSS: %.4f" % (epoch, aux_dict["loss"], aux_dict["kl"], aux_dict["mse"]))
     return state
 
 
