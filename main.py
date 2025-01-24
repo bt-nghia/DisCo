@@ -141,12 +141,12 @@ def inference(model, state, test_dataloader, noise_scheduler, key, n_item):
     return all_genbundles
 
 
-def eval(conf, train_data, test_data, all_gen_buns):
+def eval(conf, test_data, all_gen_buns):
     nu, nb, ni = conf["n_user"], conf["n_bundle"], conf["n_item"]
     batch_size = conf["batch_size"]
-    ui_mat = train_data.ui_graph
-    bi_mat = train_data.bi_graph
-    ub_mask_graph = train_data.ub_graph_train
+    ui_mat = test_data.ui_graph
+    bi_mat = test_data.bi_graph
+    ub_mask_graph = test_data.ub_graph_train
     ub_mat = test_data.ub_graph_test
 
     uids_test = test_data.test_uid
