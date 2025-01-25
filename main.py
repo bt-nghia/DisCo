@@ -21,7 +21,7 @@ def get_args():
     argp = ArgumentParser()
     argp.add_argument("--device_id", type=int, default=0)
     argp.add_argument("--dataset", type=str, default="clothing")
-    argp.add_argument("--data_path", type=str, default="datasets")
+    argp.add_argument("--data_path", type=str, default="datasets/cold_bundles")
     args = argp.parse_args()
     return args
 

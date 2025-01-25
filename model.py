@@ -30,12 +30,9 @@ def laplace_norm(mat):
     return norm_mat
 
 
-def scaled_dot_product(q, k, v, mask=None):
+def scaled_dot_product(q, k, v):
     dim = q.shape[-1]
     attn = jnp.matmul(q, k.swapaxes(-1, -2)) / dim ** -0.5
-    if mask is not None:
-        attn = jnp.where(mask == 0, -INF, attn)
-
     attn = nn.softmax(attn, axis=-1)
     out = jnp.matmul(attn, v)
     return out, attn
@@ -70,18 +67,9 @@ class MultiHeadAttention(nn.Module):
     enc_out: bool
 
     def setup(self):
-        if self.enc_out:
-            self.q_proj = nn.Dense(self.n_dim * self.n_head,
-                                   kernel_init=nn.initializers.xavier_uniform(),
-                                   bias_init=nn.initializers.zeros)
-
-            self.kv_proj = nn.Dense(self.n_dim * self.n_head * 2,
-                                    kernel_init=nn.initializers.xavier_uniform(),
-                                    bias_init=nn.initializers.zeros)
-        else:
-            self.qkv_proj = nn.Dense(self.n_dim * self.n_head * 3,
-                                     kernel_init=nn.initializers.xavier_uniform(),
-                                     bias_init=nn.initializers.zeros)
+        self.qkv_proj = nn.Dense(self.n_dim * self.n_head * 3,
+                                 kernel_init=nn.initializers.xavier_uniform(),
+                                 bias_init=nn.initializers.zeros)
 
         self.o_proj = nn.Dense(self.n_dim,
                                kernel_init=nn.initializers.xavier_uniform(),
@@ -89,24 +77,19 @@ class MultiHeadAttention(nn.Module):
 
         self.layer_norm = nn.LayerNorm()
 
-    def __call__(self, X, enc_out=None, mask=None):
+    def __call__(self, X):
         """
         X: [bs, seq_len, n_dim]
         """
-        bs, seq_len, n_dim = X.shape
-        if self.enc_out:
-            q = self.q_proj(X)
-            kv = self.kv_proj(enc_out)
-            k, v = jnp.array_split(kv, 2, axis=-1)
-        else:
-            qkv = self.qkv_proj(X)
-            q, k, v = jnp.array_split(qkv, 3, axis=-1)  # [bs, seq_len, n_head, n_dim]
+        bs, seq_len, n_dim = X.shape # [n_dim * n_aspect == hidden_dim]
+        qkv = self.qkv_proj(X) # [bs, seq_len, n_dim * n_head * 3]
+        q, k, v = jnp.array_split(qkv, 3, axis=-1)  # [bs, seq_len, n_head, n_dim]
 
         q = q.reshape((bs, seq_len, self.n_head, n_dim)).transpose(0, 2, 1, 3)  # [bs, n_head, seq_len, n_dim]
         k = k.reshape((bs, seq_len, self.n_head, n_dim)).transpose(0, 2, 1, 3)
         v = v.reshape((bs, seq_len, self.n_head, n_dim)).transpose(0, 2, 1, 3)
 
-        out, attn = scaled_dot_product(q, k, v, mask)
+        out, attn = scaled_dot_product(q, k, v)
         out = out.swapaxes(1, 2).reshape(bs, seq_len, self.n_head * n_dim)
         out = X + self.o_proj(out)
         out = self.layer_norm(out)
@@ -117,8 +100,8 @@ class EncoderLayer(nn.Module):
     conf: dict
 
     def setup(self):
-        self.attn = MultiHeadAttention(self.conf["n_dim"], self.conf["n_head"], False)
-        self.lin_norm = LinNorm(self.conf["n_dim"])
+        self.attn = MultiHeadAttention(self.conf["n_dim"] // self.conf["n_aspect"], self.conf["n_head"], False)
+        self.lin_norm = LinNorm(self.conf["n_dim"] // self.conf["n_aspect"])
 
     def __call__(self, X):
         out = self.attn(X)
@@ -145,12 +128,12 @@ class Net(nn.Module):
     conf: dict
     ui_graph: sp.coo_matrix
 
-
     def setup(self):
         self.n_users = self.conf["n_user"]
         self.n_items = self.conf["n_item"]
         self.n_bundles = self.conf["n_bundle"]
         self.hidden_dim = self.conf["n_dim"]
+        self.n_aspect = self.conf["n_aspect"]
 
         self.user_emb = self.param("user_emb", 
                                    nn.initializers.xavier_uniform(),
@@ -167,7 +150,7 @@ class Net(nn.Module):
                             bias_init=nn.initializers.zeros)
         
         self.ui_propagate_graph = self.get_propagate_graph()
-        
+
     def get_propagate_graph(self):
         ui_propagate_graph = sp.bmat([[sp.coo_matrix((self.ui_graph.shape[0], self.ui_graph.shape[0])), self.ui_graph],
                                       [self.ui_graph.T, sp.coo_matrix((self.ui_graph.shape[1], self.ui_graph.shape[1]))]])
@@ -195,6 +178,12 @@ class Net(nn.Module):
         """
         u_feat, i_feat = self.propagate()
         users_feat = u_feat[uids]
+
+        users_feat = users_feat.reshape(-1, self.n_aspect, self.hidden_dim // self.n_aspect)
+        for l in self.encoder:
+            users_feat = l(users_feat)
+        users_feat = users_feat.reshape(-1, self.hidden_dim)
+
         prob_enc = self.enc(prob_iids_bundle)
         in_feat = jnp.concat([users_feat, prob_enc], axis=1)
         out_feat = self.mlp(in_feat, prob_iids)
