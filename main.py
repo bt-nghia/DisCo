@@ -217,6 +217,8 @@ def main():
     print(f"MODEL NAME: {conf['model_name']}")
     print(f"DATACLASS: {train_data.__class__.__name__}, {test_data.__class__.__name__}")
     params = model.init(rng_model, sample_uids, sample_prob_iids, sample_prob_iids_bundle)
+    param_count = sum(x.size for x in jax.tree.leaves(params))
+    print("#PARAMETERS:", param_count)
     optimizer = optax.adam(learning_rate=1e-3)
 
     state = train_state.TrainState.create(apply_fn=model.apply,
