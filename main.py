@@ -204,7 +204,7 @@ def main():
     """
     Construct Training/Validating/Testing Data
     """
-    train_data = TrainData(conf)        
+    train_data = TrainDataVer2(conf)        
     test_data = TestData(conf, "test")
     """
     Main Model & Optimizer, Train State
