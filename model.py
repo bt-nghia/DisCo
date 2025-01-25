@@ -193,13 +193,10 @@ class Net(nn.Module):
         prob_iids: user's item probability
         prob_iids_bundle: sampled item in interacted bundle probability (noise while inference)
         """
-        # print(uids)
         u_feat, i_feat = self.propagate()
-        # users_feat = self.user_emb[uids]
         users_feat = u_feat[uids]
         prob_enc = self.enc(prob_iids_bundle)
         in_feat = jnp.concat([users_feat, prob_enc], axis=1)
         out_feat = self.mlp(in_feat, prob_iids)
         return out_feat
-        # return prob_iids
     
