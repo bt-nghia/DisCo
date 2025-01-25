@@ -121,7 +121,6 @@ def train(state, dataloader, noise_scheduler, epochs, device, key):
 
 
 def inference(model, state, test_dataloader, noise_scheduler, key, n_item):
-    #TODO (bt-nghia): fix inference loop over timesteps
     print("INFERENCE")
     all_genbundles = []
     for test_data in test_dataloader:

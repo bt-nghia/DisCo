@@ -230,3 +230,82 @@ class TrainDataVer2(Dataset):
     def __len__(self):
         return len(self.ub_pairs)
     
+# meal_cold
+# class TrainData(Dataset):
+#     """
+#     return 
+#     user id -> for personalize
+#     item prob -> for guidance
+#     item (bundle) -> for denoised
+#     """
+#     def __init__(self, conf):
+#         super().__init__()
+#         self.conf = conf
+#         # we use bundle id to easily link bundle to user for train and test purpose 
+#         self.num_user = self.conf["n_user"]
+#         self.num_item = self.conf["n_item"]
+#         self.num_bundle = self.conf["n_bundle"]
+
+#         self.ui_pairs = get_pairs(f"{self.conf['data_path']}/{self.conf['dataset']}/user_item.txt")
+#         self.ub_pairs = get_pairs(f"{self.conf['data_path']}/{self.conf['dataset']}/user_bundle_train.txt")
+#         self.bi_pairs = get_pairs(f"{self.conf['data_path']}/{self.conf['dataset']}/bundle_item.txt")
+
+#         self.ui_graph = list2csr_sp_graph(self.ui_pairs, (self.num_user, self.num_item))
+#         self.ub_graph = list2csr_sp_graph(self.ub_pairs, (self.num_user, self.num_bundle))
+#         self.bi_graph = list2csr_sp_graph(self.bi_pairs, (self.num_bundle, self.num_item))
+
+#         self.ubi_graph = self.ub_graph @ self.bi_graph
+#         self.uibi_graph = self.ui_graph + self.ub_graph @ self.bi_graph
+#         self.zeros_prob_iids = np.zeros((self.num_item,))
+
+#     def __getitem__(self, index):
+#         uid = index
+#         # prob_iids = np.array(self.ui_graph[index].todense()).reshape(-1)
+#         prob_iids = np.array(self.ui_graph[uid].todense()).reshape(-1)
+#         bun_idx = self.ub_graph[index].nonzero()[1]
+#         if len(bun_idx) > 0:
+#             rand_bun_id = np.random.choice(bun_idx)
+#             prob_iids_bundle = np.array(self.bi_graph[rand_bun_id].todense()).reshape(-1)
+#         else:
+#             prob_iids_bundle = self.zeros_prob_iids
+#         return uid, prob_iids, prob_iids_bundle
+
+#     def __len__(self):
+#         return self.num_user
+    
+
+# class TrainDataVer2(Dataset):
+#     """
+#     return 
+#     user id -> for personalize
+#     item prob -> for guidance
+#     item (bundle) -> for denoised
+#     """
+#     def __init__(self, conf):
+#         super().__init__()
+#         self.conf = conf
+#         # we use bundle id to easily link bundle to user for train and test purpose 
+#         self.num_user = self.conf["n_user"]
+#         self.num_item = self.conf["n_item"]
+#         self.num_bundle = self.conf["n_bundle"]
+
+#         self.ui_pairs = get_pairs(f"{self.conf['data_path']}/{self.conf['dataset']}/user_item.txt")
+#         self.ub_pairs = get_pairs(f"{self.conf['data_path']}/{self.conf['dataset']}/user_bundle_train.txt")
+#         self.bi_pairs = get_pairs(f"{self.conf['data_path']}/{self.conf['dataset']}/bundle_item.txt")
+
+#         self.ui_graph = list2csr_sp_graph(self.ui_pairs, (self.num_user, self.num_item))
+#         self.ub_graph = list2csr_sp_graph(self.ub_pairs, (self.num_user, self.num_bundle))
+#         self.bi_graph = list2csr_sp_graph(self.bi_pairs, (self.num_bundle, self.num_item))
+
+#         self.ubi_graph = self.ub_graph @ self.bi_graph
+#         self.uibi_graph = self.ui_graph + self.ub_graph @ self.bi_graph
+#         self.zeros_prob_iids = np.zeros((self.num_item,))
+
+#     def __getitem__(self, index):
+#         uid, bid = self.ub_pairs[index]
+#         prob_iids = np.array(self.ubi_graph[uid].todense()).reshape(-1)
+#         prob_iids_bundle = np.array(self.bi_graph[bid].todense()).reshape(-1)
+#         return uid, prob_iids, prob_iids_bundle
+
+#     def __len__(self):
+#         return len(self.ub_pairs)
