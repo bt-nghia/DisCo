@@ -64,7 +64,6 @@ class LinNorm(nn.Module):
 class MultiHeadAttention(nn.Module):
     n_dim: int
     n_head: int
-    enc_out: bool
 
     def setup(self):
         self.qkv_proj = nn.Dense(self.n_dim * self.n_head * 3,
@@ -100,7 +99,7 @@ class EncoderLayer(nn.Module):
     conf: dict
 
     def setup(self):
-        self.attn = MultiHeadAttention(self.conf["n_dim"] // self.conf["n_aspect"], self.conf["n_head"], False)
+        self.attn = MultiHeadAttention(self.conf["n_dim"] // self.conf["n_aspect"], self.conf["n_head"])
         self.lin_norm = LinNorm(self.conf["n_dim"] // self.conf["n_aspect"])
 
     def __call__(self, X):
