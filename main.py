@@ -229,7 +229,8 @@ def main():
                             batch_size=conf["batch_size"],
                             # shuffle=True,
                             shuffle=True,
-                            drop_last=False)
+                            # drop_last=False,
+                            drop_last=True)
     
     test_dataloader = DataLoader(test_data, 
                                  batch_size=conf["batch_size"], 
