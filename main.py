@@ -1,9 +1,7 @@
 from tqdm import tqdm
 from argparse import ArgumentParser
-
 from config import conf
 from utils import *
-
 import jax
 import jax.numpy as jnp
 import optax
@@ -11,6 +9,7 @@ from flax import linen as nn
 from model import Net
 from flax.training import train_state
 from utils import DiffusionScheduler
+
 
 TOTAL_TIMESTEPS = conf["timesteps"]
 INF = 1e8
