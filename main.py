@@ -152,7 +152,7 @@ def eval(conf, test_data, all_gen_buns):
     batch_idx = np.arange(0, len(uids_test))
     test_batch_loader = DataLoader(batch_idx, batch_size=batch_size, shuffle=False, drop_last=False)
 
-    for topk in [1, 2, 3, 5, 10, 20, 40, 50]:
+    for topk in [10, 20, 40, 50]:
         recall_cnt = 0
         pre_cnt = 0
         ndcg_cnt = 0
@@ -175,9 +175,10 @@ def eval(conf, test_data, all_gen_buns):
             pre_cnt+=p_cnt
             ndcg_cnt+=n_cnt
 
-        print("Recall@%i: %s" %(topk, recall_cnt / len(uids_test)))
-        print("Precision@%i: %s" %(topk, pre_cnt / len(uids_test)))
-        print("NDCG@%i: %s" %(topk, ndcg_cnt / len(uids_test)))
+        res_line = "Recall@%i: %.4f" %(topk, recall_cnt / len(uids_test)) + \
+                " | Precision@%i: %.4f" %(topk, pre_cnt / len(uids_test)) + \
+                " | NDCG@%i: %.4f" %(topk, ndcg_cnt / len(uids_test))
+        print(res_line)
 
 
 def main():
