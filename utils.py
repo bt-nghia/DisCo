@@ -1,12 +1,11 @@
 import jax.numpy as jnp
-import pandas as pd
 import numpy as np
-from config import *
-from torch.utils.data import Dataset, DataLoader
-from diffusers import DDPMScheduler
+import pandas as pd
 import scipy.sparse as sp
 from jax.experimental import sparse
+from torch.utils.data import Dataset
 
+from config import *
 
 TOTAL_TIMESTEP = conf["timestep"]
 
@@ -77,7 +76,7 @@ def make_sp_diag_mat(n):
         (vals, (ids, ids)),
         shape=(n, n)
     )
-    jax_sp_diag_mat =  sparse.BCOO.from_scipy_sparse(diag_mat)
+    jax_sp_diag_mat = sparse.BCOO.from_scipy_sparse(diag_mat)
     return jax_sp_diag_mat
 
 
@@ -85,6 +84,7 @@ class DiffusionScheduler:
     '''
     replicate & simplified code from diffusers.DDPMScheduler
     '''
+
     def __init__(
             self,
             num_train_timestep=TOTAL_TIMESTEP,
@@ -103,23 +103,25 @@ class DiffusionScheduler:
             noise,
             timestep,
     ):
-        noisy_input = original_samples * (1-self.betas[timestep].reshape(-1, 1)) \
-            + noise * self.betas[timestep].reshape(-1, 1)
+        noisy_input = original_samples * (1 - self.betas[timestep].reshape(-1, 1)) \
+                      + noise * self.betas[timestep].reshape(-1, 1)
         return noisy_input
 
     def step(
             self,
             model_output,
             time_step,
-            post_output,      
+            post_output,
     ):
-        prev_pred = post_output * (1-1/time_step) + model_output * (1/time_step)
+        prev_pred = post_output * (1 - 1 / time_step) + model_output * (1 / time_step)
         return prev_pred
 
 
 '''
 Generation Dataloader
 '''
+
+
 class TestData():
     def __init__(self, conf, task="test"):
         super().__init__()
@@ -150,7 +152,7 @@ class TestData():
 
     def __len__(self):
         return len(self.test_uid)
-    
+
 
 class TrainData(Dataset):
     """
@@ -159,6 +161,7 @@ class TrainData(Dataset):
     item prob -> for guidance
     item (bundle) -> for denoised
     """
+
     def __init__(self, conf):
         super().__init__()
         self.conf = conf
@@ -193,7 +196,7 @@ class TrainData(Dataset):
 
     def __len__(self):
         return self.num_user
-    
+
 
 class TrainDataVer2(Dataset):
     """
@@ -202,6 +205,7 @@ class TrainDataVer2(Dataset):
     item prob -> for guidance
     item (bundle) -> for denoised
     """
+
     def __init__(self, conf):
         super().__init__()
         self.conf = conf
@@ -230,7 +234,7 @@ class TrainDataVer2(Dataset):
 
     def __len__(self):
         return len(self.ub_pairs)
-    
+
 # meal_cold
 # class TrainData(Dataset):
 #     """
@@ -273,7 +277,7 @@ class TrainDataVer2(Dataset):
 
 #     def __len__(self):
 #         return self.num_user
-    
+
 
 # class TrainDataVer2(Dataset):
 #     """

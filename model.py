@@ -1,9 +1,8 @@
-from flax import linen as nn
 import jax.numpy as jnp
 import numpy as np
 import scipy.sparse as sp
+from flax import linen as nn
 from jax.experimental import sparse
-
 
 INF = 1e8
 
@@ -80,8 +79,8 @@ class MultiHeadAttention(nn.Module):
         """
         X: [bs, seq_len, n_dim]
         """
-        bs, seq_len, n_dim = X.shape # [n_dim * n_aspect == hidden_dim]
-        qkv = self.qkv_proj(X) # [bs, seq_len, n_dim * n_head * 3]
+        bs, seq_len, n_dim = X.shape  # [n_dim * n_aspect == hidden_dim]
+        qkv = self.qkv_proj(X)  # [bs, seq_len, n_dim * n_head * 3]
         q, k, v = jnp.array_split(qkv, 3, axis=-1)  # [bs, seq_len, n_head, n_dim]
 
         q = q.reshape((bs, seq_len, self.n_head, n_dim)).transpose(0, 2, 1, 3)  # [bs, n_head, seq_len, n_dim]
@@ -93,7 +92,7 @@ class MultiHeadAttention(nn.Module):
         out = X + self.o_proj(out)
         out = self.layer_norm(out)
         return out
-    
+
 
 class EncoderLayer(nn.Module):
     conf: dict
@@ -106,7 +105,7 @@ class EncoderLayer(nn.Module):
         out = self.attn(X)
         out = self.lin_norm(out)
         return out
-    
+
 
 class PredLayer(nn.Module):
     conf: dict
@@ -134,34 +133,35 @@ class Net(nn.Module):
         self.hidden_dim = self.conf["n_dim"]
         self.n_aspect = self.conf["n_aspect"]
 
-        self.user_emb = self.param("user_emb", 
+        self.user_emb = self.param("user_emb",
                                    nn.initializers.xavier_uniform(),
                                    (self.n_users, self.hidden_dim))
 
         self.item_emb = self.param("item_emb",
                                    nn.initializers.xavier_uniform(),
                                    (self.n_items, self.hidden_dim))
-        
+
         self.encoder = [EncoderLayer(self.conf) for _ in range(self.conf["n_layer"])]
         self.mlp = PredLayer(self.conf)
         self.enc = nn.Dense(self.hidden_dim,
                             kernel_init=nn.initializers.xavier_uniform(),
                             bias_init=nn.initializers.zeros)
-        
+
         self.ui_propagate_graph = self.get_propagate_graph()
 
     def get_propagate_graph(self):
         ui_propagate_graph = sp.bmat([[sp.coo_matrix((self.ui_graph.shape[0], self.ui_graph.shape[0])), self.ui_graph],
-                                      [self.ui_graph.T, sp.coo_matrix((self.ui_graph.shape[1], self.ui_graph.shape[1]))]])
+                                      [self.ui_graph.T,
+                                       sp.coo_matrix((self.ui_graph.shape[1], self.ui_graph.shape[1]))]])
         ui_propagate_graph = sparse.BCOO.from_scipy_sparse(laplace_norm(ui_propagate_graph))
         return ui_propagate_graph
-    
+
     def propagate(self, num_layers=2):
         features = jnp.concatenate([self.user_emb, self.item_emb], axis=0)
         all_features = [features]
         for i in range(0, num_layers):
             features = self.ui_propagate_graph @ features
-            features = features / (i+2)
+            features = features / (i + 2)
             features = normalize(features)
             all_features.append(features)
         all_features = jnp.stack(all_features, axis=1)
@@ -187,4 +187,3 @@ class Net(nn.Module):
         in_feat = jnp.concat([users_feat, prob_enc], axis=1)
         out_feat = self.mlp(in_feat, prob_iids)
         return out_feat
-    

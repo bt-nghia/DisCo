@@ -1,15 +1,14 @@
-from tqdm import tqdm
 from argparse import ArgumentParser
-from config import conf
-from utils import *
+
 import jax
-import jax.numpy as jnp
 import optax
 from flax import linen as nn
-from model import Net
 from flax.training import train_state
-from utils import DiffusionScheduler
+from tqdm import tqdm
 
+from model import Net
+from utils import *
+from utils import DiffusionScheduler
 
 TOTAL_TIMESTEP = conf["timestep"]
 INF = 1e8
@@ -25,12 +24,11 @@ def get_args():
 
 
 def cal_metrics(
-        all_gen_buns_batch, 
-        ub_mask_graph_batch, 
+        all_gen_buns_batch,
+        ub_mask_graph_batch,
         ub_mat, bi_mat,
         topk
-        ):
-    
+):
     recall_cnt, pre_cnt, ndcg_cnt, cnt = 0, 0, 0, 0
     pred_score = all_gen_buns_batch @ bi_mat.T
     ub_mask_graph_batch = ub_mask_graph_batch.todense()
@@ -41,25 +39,25 @@ def cal_metrics(
     row_ids = jnp.broadcast_to(jnp.arange(0, bs).reshape(-1, 1), (bs, topk))
     hit = ub_mat[row_ids, col_ids].todense()
 
-    #recall
+    # recall
     recall_cnt = hit.sum(axis=1) / (ub_mat.sum(axis=1) + 1e-8)
-    
-    #precision
+
+    # precision
     pre_cnt = hit.sum(axis=1) / topk
-    
-    #ndcg
+
+    # ndcg
     def DCG(hit, topk):
-        dcg = hit / jnp.broadcast_to(jnp.log2(jnp.arange(2, topk+2)), hit.shape)
+        dcg = hit / jnp.broadcast_to(jnp.log2(jnp.arange(2, topk + 2)), hit.shape)
         return dcg.sum(axis=-1)
 
     def IDCG(num_pos, topk):
         temp_hit = np.zeros(topk)
         temp_hit[:num_pos] = 1
         return DCG(temp_hit, topk)
-    
-    IDCGs = [0] * (topk+1)
+
+    IDCGs = [0] * (topk + 1)
     IDCGs[0] = 1
-    for i in range(1, topk+1):
+    for i in range(1, topk + 1):
         IDCGs[i] = IDCG(i, topk)
 
     IDCGs = np.array(IDCGs)
@@ -77,22 +75,23 @@ def kl_divergence(src, trg):
 
 
 def mse(x, y):
-    return jnp.mean((x-y) ** 2)
+    return jnp.mean((x - y) ** 2)
 
 
 def train_step(state, uids, prob_iids, noisy_prob_iids_bundle, prob_iids_bundle):
     def loss_fn(params, uids, prob_iids, noisy_prob_iids_bundle, prob_iids_bundle):
         logits = state.apply_fn(params, uids, prob_iids, noisy_prob_iids_bundle)
-        mse_loss = mse(logits, prob_iids_bundle) # MSE
+        mse_loss = mse(logits, prob_iids_bundle)  # MSE
 
         slogits = nn.softmax(logits)
         sprob_iids = nn.softmax(prob_iids)
-        kl_loss = kl_divergence(slogits, sprob_iids) # Kullback-Leibler Divergence (true probability: prob_iids)
+        kl_loss = kl_divergence(slogits, sprob_iids)  # Kullback-Leibler Divergence (true probability: prob_iids)
 
         loss = mse_loss + kl_loss
         return loss, {"loss": loss, "mse": mse_loss, "kl": kl_loss}
 
-    aux, grads = jax.value_and_grad(loss_fn, has_aux=True)(state.params, uids, prob_iids, noisy_prob_iids_bundle, prob_iids_bundle)
+    aux, grads = jax.value_and_grad(loss_fn, has_aux=True)(state.params, uids, prob_iids, noisy_prob_iids_bundle,
+                                                           prob_iids_bundle)
     state = state.apply_gradients(grads=grads)
     loss, aux_dict = aux
     return state, loss, aux_dict
@@ -110,11 +109,13 @@ def train(state, dataloader, noise_scheduler, epochs, device, key):
 
             randkey, timekey, key = jax.random.split(key, num=3)
             noise = jax.random.normal(randkey, shape=prob_iids_bundle.shape)
-            timestep = jax.random.randint(timekey, (prob_iids_bundle.shape[0],), minval=0, maxval=TOTAL_TIMESTEP-1)
+            timestep = jax.random.randint(timekey, (prob_iids_bundle.shape[0],), minval=0, maxval=TOTAL_TIMESTEP - 1)
 
             noisy_prob_iids_bundle = noise_scheduler.add_noise(prob_iids_bundle, noise, timestep)
-            state, loss, aux_dict = jax.jit(train_step, device=device)(state, uids, prob_iids, noisy_prob_iids_bundle, prob_iids_bundle)
-            pbar.set_description("EPOCH: %i | LOSS: %.4f | KL_LOSS: %.4f | MSE_LOSS: %.4f" % (epoch, aux_dict["loss"], aux_dict["kl"], aux_dict["mse"]))
+            state, loss, aux_dict = jax.jit(train_step, device=device)(state, uids, prob_iids, noisy_prob_iids_bundle,
+                                                                       prob_iids_bundle)
+            pbar.set_description("EPOCH: %i | LOSS: %.4f | KL_LOSS: %.4f | MSE_LOSS: %.4f" % (
+                epoch, aux_dict["loss"], aux_dict["kl"], aux_dict["mse"]))
     return state
 
 
@@ -154,26 +155,26 @@ def eval(conf, test_data, all_gen_buns):
         ndcg_cnt = 0
 
         for batch in test_batch_loader:
-            start=batch[0]
-            end=batch[-1]
+            start = batch[0]
+            end = batch[-1]
 
-            uids_test_batch = uids_test[start:end+1]
+            uids_test_batch = uids_test[start:end + 1]
             ub_mask_graph_batch = ub_mask_graph[uids_test_batch]
             # all_gen_buns_batch = all_gen_buns[uids_test_batch]
-            all_gen_buns_batch = all_gen_buns[start:end+1]
-            
+            all_gen_buns_batch = all_gen_buns[start:end + 1]
+
             r_cnt, p_cnt, n_cnt = cal_metrics(all_gen_buns_batch,
-                                              ub_mask_graph_batch, 
+                                              ub_mask_graph_batch,
                                               ub_mat[uids_test_batch],
                                               bi_mat,
                                               topk)
-            recall_cnt+=r_cnt
-            pre_cnt+=p_cnt
-            ndcg_cnt+=n_cnt
+            recall_cnt += r_cnt
+            pre_cnt += p_cnt
+            ndcg_cnt += n_cnt
 
-        res_line = "Recall@%i: %.4f" %(topk, recall_cnt / len(uids_test)) + \
-            " | " + "Precision@%i: %.4f" %(topk, pre_cnt / len(uids_test)) + \
-            " | " + "NDCG@%i: %.4f" %(topk, ndcg_cnt / len(uids_test))
+        res_line = "Recall@%i: %.4f" % (topk, recall_cnt / len(uids_test)) + \
+                   " | " + "Precision@%i: %.4f" % (topk, pre_cnt / len(uids_test)) + \
+                   " | " + "NDCG@%i: %.4f" % (topk, ndcg_cnt / len(uids_test))
         print(res_line)
 
 
@@ -200,7 +201,7 @@ def main():
     """
     Construct Training/Validating/Testing Data
     """
-    train_data = TrainDataVer2(conf)        
+    train_data = TrainDataVer2(conf)
     test_data = TestData(conf, "test")
     valid_data = TestData(conf, "tune")
     """
@@ -226,16 +227,14 @@ def main():
 
     dataloader = DataLoader(train_data,
                             batch_size=conf["batch_size"],
-                            # shuffle=True,
                             shuffle=True,
-                            # drop_last=False,
                             drop_last=True)
-    
-    test_dataloader = DataLoader(test_data, 
-                                 batch_size=conf["batch_size"], 
+
+    test_dataloader = DataLoader(test_data,
+                                 batch_size=conf["batch_size"],
                                  shuffle=False,
                                  drop_last=False)
-    
+
     valid_dataloader = DataLoader(valid_data,
                                   batch_size=conf["batch_size"],
                                   shuffle=False,
@@ -251,7 +250,8 @@ def main():
     rng_infer_test, rng_infer_valid = jax.random.split(rng_infer)
 
     print("VALIDATING")
-    generated_bundles_valid = inference(model, state, valid_dataloader, noise_scheduler, rng_infer_valid, conf["n_item"])
+    generated_bundles_valid = inference(model, state, valid_dataloader, noise_scheduler, rng_infer_valid,
+                                        conf["n_item"])
     eval(conf, valid_data, generated_bundles_valid)
 
     print("TESTING")
