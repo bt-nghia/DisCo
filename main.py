@@ -174,8 +174,8 @@ def eval(conf, test_data, all_gen_buns):
             ndcg_cnt+=n_cnt
 
         res_line = "Recall@%i: %.4f" %(topk, recall_cnt / len(uids_test)) + \
-                " | Precision@%i: %.4f" %(topk, pre_cnt / len(uids_test)) + \
-                " | NDCG@%i: %.4f" %(topk, ndcg_cnt / len(uids_test))
+            " | " + "Precision@%i: %.4f" %(topk, pre_cnt / len(uids_test)) + \
+            " | " + "NDCG@%i: %.4f" %(topk, ndcg_cnt / len(uids_test))
         print(res_line)
 
 
