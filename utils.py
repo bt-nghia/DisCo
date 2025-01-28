@@ -124,12 +124,13 @@ class TestData():
     def __init__(self, conf, task="test"):
         super().__init__()
         self.conf = conf
+        self.task = task
         self.num_user = self.conf["n_user"]
         self.num_item = self.conf["n_item"]
         self.num_bundle = self.conf["n_bundle"]
 
         self.ui_pairs = get_pairs(f"{self.conf['data_path']}/{self.conf['dataset']}/user_item.txt")
-        self.ub_pairs_test = get_pairs(f"{self.conf['data_path']}/{self.conf['dataset']}/user_bundle_{task}.txt")
+        self.ub_pairs_test = get_pairs(f"{self.conf['data_path']}/{self.conf['dataset']}/user_bundle_{self.task}.txt")
         self.bi_pairs = get_pairs(f"{self.conf['data_path']}/{self.conf['dataset']}/bundle_item.txt")
         self.ub_pairs_train = get_pairs(f"{self.conf['data_path']}/{self.conf['dataset']}/user_bundle_train.txt")
 
