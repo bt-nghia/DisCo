@@ -10,7 +10,6 @@ import optax
 from flax import linen as nn
 from model import Net
 from flax.training import train_state
-from diffusers import DDPMScheduler
 from utils import DiffusionScheduler
 
 TOTAL_TIMESTEPS = conf["timesteps"]
