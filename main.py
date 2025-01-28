@@ -11,7 +11,7 @@ from flax.training import train_state
 from utils import DiffusionScheduler
 
 
-TOTAL_TIMESTEPS = conf["timesteps"]
+TOTAL_TIMESTEP = conf["timestep"]
 INF = 1e8
 
 
@@ -110,9 +110,9 @@ def train(state, dataloader, noise_scheduler, epochs, device, key):
 
             randkey, timekey, key = jax.random.split(key, num=3)
             noise = jax.random.normal(randkey, shape=prob_iids_bundle.shape)
-            timesteps = jax.random.randint(timekey, (prob_iids_bundle.shape[0],), minval=0, maxval=TOTAL_TIMESTEPS-1)
+            timestep = jax.random.randint(timekey, (prob_iids_bundle.shape[0],), minval=0, maxval=TOTAL_TIMESTEP-1)
 
-            noisy_prob_iids_bundle = noise_scheduler.add_noise(prob_iids_bundle, noise, timesteps)
+            noisy_prob_iids_bundle = noise_scheduler.add_noise(prob_iids_bundle, noise, timestep)
             state, loss, aux_dict = jax.jit(train_step, device=device)(state, uids, prob_iids, noisy_prob_iids_bundle, prob_iids_bundle)
             pbar.set_description("EPOCH: %i | LOSS: %.4f | KL_LOSS: %.4f | MSE_LOSS: %.4f" % (epoch, aux_dict["loss"], aux_dict["kl"], aux_dict["mse"]))
     return state
@@ -128,7 +128,7 @@ def inference(model, state, test_dataloader, noise_scheduler, key, n_item):
         noisy_prob_iids_bundle = jax.random.normal(rand_key, shape=(uids.shape[0], n_item))
 
         post_prob_iids_bundle = noisy_prob_iids_bundle
-        for i, t in enumerate(noise_scheduler.timesteps):
+        for i, t in enumerate(noise_scheduler.timestep):
             model_output = model.apply(state.params, uids, prob_iids, post_prob_iids_bundle)
             post_prob_iids_bundle = noise_scheduler.step(model_output, t, post_prob_iids_bundle)
 
@@ -222,7 +222,7 @@ def main():
     state = train_state.TrainState.create(apply_fn=model.apply,
                                           params=params,
                                           tx=optimizer)
-    noise_scheduler = DiffusionScheduler(num_train_timesteps=TOTAL_TIMESTEPS)
+    noise_scheduler = DiffusionScheduler(num_train_timestep=TOTAL_TIMESTEP)
 
     dataloader = DataLoader(train_data,
                             batch_size=conf["batch_size"],

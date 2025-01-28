@@ -8,7 +8,7 @@ import scipy.sparse as sp
 from jax.experimental import sparse
 
 
-TOTAL_TIMESTEPS = conf["timesteps"]
+TOTAL_TIMESTEP = conf["timestep"]
 
 
 def get_pairs(file_path):
@@ -87,24 +87,24 @@ class DiffusionScheduler:
     '''
     def __init__(
             self,
-            num_train_timesteps=TOTAL_TIMESTEPS,
+            num_train_timestep=TOTAL_TIMESTEP,
             beta_start=0,
             beta_end=1
     ):
         super().__init__()
-        self.betas = jnp.linspace(beta_start, beta_end, num_train_timesteps)
+        self.betas = jnp.linspace(beta_start, beta_end, num_train_timestep)
         self.alphas = 1 - self.betas
         self.alphas_cumprod = jnp.cumprod(self.alphas, axis=0)
-        self.timesteps = jnp.arange(0, num_train_timesteps)[::-1] + 1
+        self.timestep = jnp.arange(0, num_train_timestep)[::-1] + 1
 
     def add_noise(
             self,
             original_samples,
             noise,
-            timesteps,
+            timestep,
     ):
-        noisy_input = original_samples * (1-self.betas[timesteps].reshape(-1, 1)) \
-            + noise * self.betas[timesteps].reshape(-1, 1)
+        noisy_input = original_samples * (1-self.betas[timestep].reshape(-1, 1)) \
+            + noise * self.betas[timestep].reshape(-1, 1)
         return noisy_input
 
     def step(
