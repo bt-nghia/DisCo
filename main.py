@@ -79,8 +79,20 @@ def mse(x, y):
     return jnp.mean((x - y) ** 2)
 
 
-def train_step(state, uids, prob_iids, noisy_prob_iids_bundle, prob_iids_bundle):
-    def loss_fn(params, uids, prob_iids, noisy_prob_iids_bundle, prob_iids_bundle):
+def train_step(
+        state,
+        uids,
+        prob_iids,
+        noisy_prob_iids_bundle,
+        prob_iids_bundle
+):
+    def loss_fn(
+            params,
+            uids,
+            prob_iids,
+            noisy_prob_iids_bundle,
+            prob_iids_bundle
+    ):
         logits = state.apply_fn(params, uids, prob_iids, noisy_prob_iids_bundle)
         mse_loss = mse(logits, prob_iids_bundle)  # MSE
 
@@ -98,7 +110,14 @@ def train_step(state, uids, prob_iids, noisy_prob_iids_bundle, prob_iids_bundle)
     return state, loss, aux_dict
 
 
-def train(state, dataloader, noise_scheduler, epochs, device, key):
+def train(
+        state,
+        dataloader,
+        noise_scheduler,
+        epochs,
+        device,
+        key
+):
     print("TRAINING")
 
     for epoch in range(epochs):
@@ -120,7 +139,14 @@ def train(state, dataloader, noise_scheduler, epochs, device, key):
     return state
 
 
-def inference(model, state, test_dataloader, noise_scheduler, key, n_item):
+def inference(
+        model,
+        state,
+        test_dataloader,
+        noise_scheduler,
+        key,
+        n_item
+):
     all_genbundles = []
     for test_data in test_dataloader:
         key, rand_key = jax.random.split(key)
@@ -139,7 +165,11 @@ def inference(model, state, test_dataloader, noise_scheduler, key, n_item):
     return all_genbundles
 
 
-def eval(conf, test_data, all_gen_buns):
+def eval(
+        conf,
+        test_data,
+        all_gen_buns
+):
     batch_size = conf["batch_size"]
     ui_mat = test_data.ui_graph
     bi_mat = test_data.bi_graph
@@ -161,7 +191,6 @@ def eval(conf, test_data, all_gen_buns):
 
             uids_test_batch = uids_test[start:end + 1]
             ub_mask_graph_batch = ub_mask_graph[uids_test_batch]
-            # all_gen_buns_batch = all_gen_buns[uids_test_batch]
             all_gen_buns_batch = all_gen_buns[start:end + 1]
 
             r_cnt, p_cnt, n_cnt = cal_metrics(all_gen_buns_batch,

@@ -116,7 +116,11 @@ class PredLayer(nn.Module):
                             kernel_init=nn.initializers.xavier_uniform(),
                             bias_init=nn.initializers.zeros)
 
-    def __call__(self, X, residual_feat):
+    def __call__(
+            self,
+            X,
+            residual_feat
+    ):
         out = self.lin(X) + residual_feat
         logits = nn.sigmoid(out)
         return logits
@@ -156,7 +160,10 @@ class Net(nn.Module):
         ui_propagate_graph = sparse.BCOO.from_scipy_sparse(laplace_norm(ui_propagate_graph))
         return ui_propagate_graph
 
-    def propagate(self, num_layers=2):
+    def propagate(
+            self,
+            num_layers=2
+    ):
         features = jnp.concatenate([self.user_emb, self.item_emb], axis=0)
         all_features = [features]
         for i in range(0, num_layers):
@@ -169,7 +176,12 @@ class Net(nn.Module):
         u_feat, i_feat = jnp.split(all_features, [self.n_users], axis=0)
         return u_feat, i_feat
 
-    def __call__(self, uids, prob_iids, prob_iids_bundle):
+    def __call__(
+            self,
+            uids,
+            prob_iids,
+            prob_iids_bundle
+    ):
         """
         uids: user ids
         prob_iids: user's item probability
