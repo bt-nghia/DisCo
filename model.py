@@ -44,18 +44,15 @@ class LinNorm(nn.Module):
         self.lin1 = nn.Dense(self.n_dim * 4,
                              kernel_init=nn.initializers.xavier_uniform(),
                              bias_init=nn.initializers.zeros)
-
-        self.act = nn.relu
         self.lin2 = nn.Dense(self.n_dim,
                              kernel_init=nn.initializers.xavier_uniform(),
                              bias_init=nn.initializers.zeros)
-
         self.layer_norm = nn.LayerNorm()
 
-    def __call__(self, X):
-        out = self.lin1(X)
-        out = self.act(out)
-        out = self.lin2(out) + X
+    def __call__(self, x):
+        out = self.lin1(x)
+        out = nn.relu(out)
+        out = self.lin2(out) + x
         out = self.layer_norm(out)
         return out
 
@@ -68,19 +65,17 @@ class MultiHeadAttention(nn.Module):
         self.qkv_proj = nn.Dense(self.n_dim * self.n_head * 3,
                                  kernel_init=nn.initializers.xavier_uniform(),
                                  bias_init=nn.initializers.zeros)
-
         self.o_proj = nn.Dense(self.n_dim,
                                kernel_init=nn.initializers.xavier_uniform(),
                                bias_init=nn.initializers.zeros)
-
         self.layer_norm = nn.LayerNorm()
 
-    def __call__(self, X):
+    def __call__(self, x):
         """
         X: [bs, seq_len, n_dim]
         """
-        bs, seq_len, n_dim = X.shape  # [n_dim * n_aspect == hidden_dim]
-        qkv = self.qkv_proj(X)  # [bs, seq_len, n_dim * n_head * 3]
+        bs, seq_len, n_dim = x.shape  # [n_dim * n_aspect == hidden_dim]
+        qkv = self.qkv_proj(x)  # [bs, seq_len, n_dim * n_head * 3]
         q, k, v = jnp.array_split(qkv, 3, axis=-1)  # [bs, seq_len, n_head, n_dim]
 
         q = q.reshape((bs, seq_len, self.n_head, n_dim)).transpose(0, 2, 1, 3)  # [bs, n_head, seq_len, n_dim]
@@ -89,7 +84,7 @@ class MultiHeadAttention(nn.Module):
 
         out, attn = scaled_dot_product(q, k, v)
         out = out.swapaxes(1, 2).reshape(bs, seq_len, self.n_head * n_dim)
-        out = X + self.o_proj(out)
+        out = x + self.o_proj(out)
         out = self.layer_norm(out)
         return out
 
@@ -101,8 +96,8 @@ class EncoderLayer(nn.Module):
         self.attn = MultiHeadAttention(self.conf["n_dim"] // self.conf["n_aspect"], self.conf["n_head"])
         self.lin_norm = LinNorm(self.conf["n_dim"] // self.conf["n_aspect"])
 
-    def __call__(self, X):
-        out = self.attn(X)
+    def __call__(self, x):
+        out = self.attn(x)
         out = self.lin_norm(out)
         return out
 
@@ -118,10 +113,10 @@ class PredLayer(nn.Module):
 
     def __call__(
             self,
-            X,
+            x,
             residual_feat
     ):
-        out = self.lin(X) + residual_feat
+        out = self.lin(x) + residual_feat
         logits = nn.sigmoid(out)
         return logits
 
@@ -136,15 +131,12 @@ class Net(nn.Module):
         self.n_bundles = self.conf["n_bundle"]
         self.hidden_dim = self.conf["n_dim"]
         self.n_aspect = self.conf["n_aspect"]
-
         self.user_emb = self.param("user_emb",
                                    nn.initializers.xavier_uniform(),
                                    (self.n_users, self.hidden_dim))
-
         self.item_emb = self.param("item_emb",
                                    nn.initializers.xavier_uniform(),
                                    (self.n_items, self.hidden_dim))
-
         self.encoder = [EncoderLayer(self.conf) for _ in range(self.conf["n_layer"])]
         self.mlp = PredLayer(self.conf)
         self.enc = nn.Dense(self.hidden_dim,
