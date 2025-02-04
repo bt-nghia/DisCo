@@ -87,15 +87,23 @@ class DiffusionScheduler:
 
     def __init__(
             self,
-            num_train_timestep=TOTAL_TIMESTEP,
-            beta_start=0,
-            beta_end=1
+            num_train_timestep=100,
+            beta_start=1e-5,
+            beta_end=0.2,
     ):
         super().__init__()
         self.betas = jnp.linspace(beta_start, beta_end, num_train_timestep)
+        self.sqrt_one_minus_betas = jnp.sqrt(1 - self.betas)
         self.alphas = 1 - self.betas
-        self.alphas_cumprod = jnp.cumprod(self.alphas, axis=0)
+        self.alphas_cum_prod = jnp.cumprod(self.alphas, axis=0)
+        self.sqrt_one_minus_alphas_cum_prod = jnp.sqrt(1 - self.alphas_cum_prod)
+        self.sqrt_alphas_cum_prod = jnp.sqrt(self.alphas_cum_prod)
         self.timestep = jnp.arange(0, num_train_timestep)[::-1] + 1
+        # print(self.betas)
+        # print(1 - self.betas)
+        # print(self.sqrt_alphas_cum_prod)
+        # print(self.sqrt_one_minus_alphas_cum_prod)
+        # exit()
 
     def add_noise(
             self,
@@ -103,8 +111,8 @@ class DiffusionScheduler:
             noise,
             timestep,
     ):
-        noisy_input = original_samples * (1 - self.betas[timestep].reshape(-1, 1)) \
-                      + noise * self.betas[timestep].reshape(-1, 1)
+        noisy_input = original_samples * (1 - self.sqrt_alphas_cum_prod[timestep].reshape(-1, 1)) \
+                      + noise * self.sqrt_one_minus_alphas_cum_prod[timestep].reshape(-1, 1)
         return noisy_input
 
     def step(

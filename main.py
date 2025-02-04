@@ -129,7 +129,7 @@ def train(
 
             randkey, timekey, key = jax.random.split(key, num=3)
             noise = jax.random.normal(randkey, shape=prob_iids_bundle.shape)
-            noise = jnp.clip(noise, 0)
+            # noise = jnp.clip(noise, 0)
             timestep = jax.random.randint(timekey, (prob_iids_bundle.shape[0],), minval=0, maxval=TOTAL_TIMESTEP - 1)
 
             noisy_prob_iids_bundle = noise_scheduler.add_noise(prob_iids_bundle, noise, timestep)
@@ -155,7 +155,7 @@ def inference(
         uids = jnp.array(uids, dtype=jnp.int32)
         prob_iids = jnp.array(prob_iids, jnp.float32)
         noisy_prob_iids_bundle = jax.random.normal(rand_key, shape=(uids.shape[0], n_item))
-        noisy_prob_iids_bundle = jnp.clip(noisy_prob_iids_bundle, 0)
+        # noisy_prob_iids_bundle = jnp.clip(noisy_prob_iids_bundle, 0)
 
         post_prob_iids_bundle = noisy_prob_iids_bundle
         for i, t in enumerate(noise_scheduler.timestep):
