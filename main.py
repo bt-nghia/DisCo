@@ -281,10 +281,10 @@ def main():
     """
     rng_infer_test, rng_infer_valid = jax.random.split(rng_infer)
 
-    print("VALIDATING")
-    generated_bundles_valid = inference(model, state, valid_dataloader, noise_scheduler, rng_infer_valid,
-                                        conf["n_item"])
-    eval(conf, valid_data, generated_bundles_valid)
+    # print("VALIDATING")
+    # generated_bundles_valid = inference(model, state, valid_dataloader, noise_scheduler, rng_infer_valid,
+    #                                     conf["n_item"])
+    # eval(conf, valid_data, generated_bundles_valid)
 
     print("TESTING")
     generated_bundles_test = inference(model, state, test_dataloader, noise_scheduler, rng_infer_test, conf["n_item"])
