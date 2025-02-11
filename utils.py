@@ -286,7 +286,7 @@ class TrainDataVer3(Dataset):
 
 class TrainDataVer4(Dataset):
     """
-    curriculum strict dataloader
+    STRICT SAMPLING
     return
     user id -> for personalize
     item prob -> for guidance
@@ -310,24 +310,22 @@ class TrainDataVer4(Dataset):
         self.bi_graph = list2csr_sp_graph(self.bi_pairs, (self.num_bundle, self.num_item))
 
         self.ubi_graph = self.ub_graph @ self.bi_graph
-        self.uibi_graph = (self.ui_graph + self.ub_graph @ self.bi_graph).astype(int)
-        self.zeros_prob_iids = np.zeros((self.num_item,))
-        self.ub_strict = ((self.uibi_graph @ self.bi_graph.T) > 0).astype(int)
-        self.have_strict = self.ub_strict.sum(axis=1)
+        self.uibi_graph = self.ui_graph + self.ub_graph @ self.bi_graph > 0
+        self.strict_bundle_mat = self.uibi_graph @ self.bi_graph.T
+        self.u_have_strict = (self.strict_bundle_mat.sum(axis=1) < self.num_bundle)
 
     def __getitem__(self, index):
         uid, bid = self.ub_pairs[index]
         prob_iids = np.array(self.ui_graph[uid].todense()).reshape(-1)
-        prob_iids_bundle = np.array(self.bi_graph[bid].todense(), dtype=int).reshape(-1)
-        if self.have_strict[uid] < self.num_bundle:
+        if self.u_have_strict[uid]:
             while True:
                 nbid = np.random.choice(self.num_bundle)
-                if self.ub_graph[uid, nbid] == 0:
+                if self.strict_bundle_mat[uid, nbid] == 0:
                     break
-            neg_prob = np.array(self.bi_graph[nbid].todense(), dtype=int).reshape(-1)
+            neg_prob = self.bi_graph[nbid].todense()
         else:
-            neg_prob = 0.
-        prob_iids_bundle -= neg_prob
+            neg_prob = np.zeros(self.num_item)
+        prob_iids_bundle = np.array(self.bi_graph[bid].todense() - neg_prob).reshape(-1)
         return uid, prob_iids, prob_iids_bundle
 
     def __len__(self):
