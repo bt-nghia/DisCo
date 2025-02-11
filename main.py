@@ -236,7 +236,7 @@ def main():
     train_data = TrainDataVer2(conf)
     train_data2 = TrainDataVer3(conf)
     test_data = TestData(conf, "test")
-    valid_data = TestData(conf, "tune")
+    # valid_data = TestData(conf, "tune")
     """
     Main Model & Optimizer, Train State
     """
@@ -273,10 +273,10 @@ def main():
                                  shuffle=False,
                                  drop_last=False)
 
-    valid_dataloader = DataLoader(valid_data,
-                                  batch_size=conf["batch_size"],
-                                  shuffle=False,
-                                  drop_last=False)
+    # valid_dataloader = DataLoader(valid_data,
+    #                               batch_size=conf["batch_size"],
+    #                               shuffle=False,
+    #                               drop_last=False)
 
     """
     Training & Save checkpoint
