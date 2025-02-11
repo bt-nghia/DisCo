@@ -307,7 +307,7 @@ class TrainDataVer4(Dataset):
 
         self.ui_graph = list2csr_sp_graph(self.ui_pairs, (self.num_user, self.num_item))
         self.ub_graph = list2csr_sp_graph(self.ub_pairs, (self.num_user, self.num_bundle))
-        self.bi_graph = list2csr_sp_graph(self.bi_pairs, (self.num_bundle, self.num_item))
+        self.bi_graph = list2csr_sp_graph(self.bi_pairs, (self.num_bundle, self.num_item)).astype(int)
 
         self.ubi_graph = self.ub_graph @ self.bi_graph
         self.uibi_graph = self.ui_graph + self.ub_graph @ self.bi_graph > 0
