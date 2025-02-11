@@ -283,6 +283,57 @@ class TrainDataVer3(Dataset):
     def __len__(self):
         return len(self.ub_pairs)
 
+
+class TrainDataVer4(Dataset):
+    """
+    curriculum strict dataloader
+    return
+    user id -> for personalize
+    item prob -> for guidance
+    item (bundle) -> for denoised
+    """
+
+    def __init__(self, conf):
+        super().__init__()
+        self.conf = conf
+        # we use bundle id to easily link bundle to user for train and test purpose
+        self.num_user = self.conf["n_user"]
+        self.num_item = self.conf["n_item"]
+        self.num_bundle = self.conf["n_bundle"]
+
+        self.ui_pairs = get_pairs(f"{self.conf['data_path']}/{self.conf['dataset']}/user_item.txt")
+        self.ub_pairs = get_pairs(f"{self.conf['data_path']}/{self.conf['dataset']}/user_bundle_train.txt")
+        self.bi_pairs = get_pairs(f"{self.conf['data_path']}/{self.conf['dataset']}/bundle_item.txt")
+
+        self.ui_graph = list2csr_sp_graph(self.ui_pairs, (self.num_user, self.num_item))
+        self.ub_graph = list2csr_sp_graph(self.ub_pairs, (self.num_user, self.num_bundle))
+        self.bi_graph = list2csr_sp_graph(self.bi_pairs, (self.num_bundle, self.num_item))
+
+        self.ubi_graph = self.ub_graph @ self.bi_graph
+        self.uibi_graph = (self.ui_graph + self.ub_graph @ self.bi_graph).astype(int)
+        self.zeros_prob_iids = np.zeros((self.num_item,))
+        self.ub_strict = ((self.uibi_graph @ self.bi_graph.T) > 0).astype(int)
+        self.have_strict = self.ub_strict.sum(axis=1)
+
+    def __getitem__(self, index):
+        uid, bid = self.ub_pairs[index]
+        prob_iids = np.array(self.ui_graph[uid].todense()).reshape(-1)
+        prob_iids_bundle = np.array(self.bi_graph[bid].todense(), dtype=int).reshape(-1)
+        if self.have_strict[uid] < self.num_bundle:
+            while True:
+                nbid = np.random.choice(self.num_bundle)
+                if self.ub_graph[uid, nbid] == 0:
+                    break
+            neg_prob = np.array(self.bi_graph[nbid].todense(), dtype=int).reshape(-1)
+        else:
+            neg_prob = 0.
+        prob_iids_bundle -= neg_prob
+        return uid, prob_iids, prob_iids_bundle
+
+    def __len__(self):
+        return len(self.ub_pairs)
+
+
 # meal_cold
 # class TrainData(Dataset):
 #     """
