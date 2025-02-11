@@ -226,7 +226,7 @@ def main():
     device = devices[args.device_id]
     conf["device"] = device
 
-    rng_infer, rng_gen, rng_model = jax.random.split(jax.random.PRNGKey(2025), num=3)
+    rng_infer, rng_gen, rng_gen2, rng_model = jax.random.split(jax.random.PRNGKey(2025), num=4)
     np.random.seed(2025)
     print(conf)
 
@@ -234,6 +234,7 @@ def main():
     Construct Training/Validating/Testing Data
     """
     train_data = TrainDataVer2(conf)
+    train_data2 = TrainDataVer3(conf)
     test_data = TestData(conf, "test")
     valid_data = TestData(conf, "tune")
     """
@@ -262,6 +263,11 @@ def main():
                             shuffle=True,
                             drop_last=True)
 
+    dataloader2 = DataLoader(train_data2,
+                             batch_size=conf["batch_size"],
+                             shuffle=True,
+                             drop_last=True)
+
     test_dataloader = DataLoader(test_data,
                                  batch_size=conf["batch_size"],
                                  shuffle=False,
@@ -275,7 +281,8 @@ def main():
     """
     Training & Save checkpoint
     """
-    state = train(state, dataloader, noise_scheduler, conf["epoch"], device, rng_gen)
+    state = train(state, dataloader, noise_scheduler, conf["epoch"] // 2, device, rng_gen)
+    state = train(state, dataloader2, noise_scheduler, conf["epoch"] // 2, device, rng_gen2)
     """
     Generate & Evaluate
     """
