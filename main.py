@@ -247,7 +247,7 @@ def main():
 
     conf["model_name"] = model.__class__.__name__
     print(f"MODEL NAME: {conf['model_name']}")
-    print(f"DATACLASS: {train_data.__class__.__name__}, {test_data.__class__.__name__}({test_data.task})")
+    print(f"DATACLASS: {train_data.__class__.__name__}, {train_data2.__class__.__name__}, {test_data.__class__.__name__}({test_data.task})")
     params = model.init(rng_model, sample_uids, sample_prob_iids, sample_prob_iids_bundle)
     param_count = sum(x.size for x in jax.tree.leaves(params))
     print("#PARAMETERS:", param_count)
