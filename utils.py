@@ -275,7 +275,7 @@ class TrainDataVer3(Dataset):
         prob_iids_bundle = np.array(self.bi_graph[bid].todense()).reshape(-1)
         while True:
             nbid = np.random.choice(self.num_bundle)
-            if self.ub_pairs[uid, nbid] == 0:
+            if self.ub_graph[uid, nbid] == 0:
                 break
         prob_iids_bundle -= np.array(self.bi_graph[nbid].todense()).reshape(-1)
         return uid, prob_iids, prob_iids_bundle
