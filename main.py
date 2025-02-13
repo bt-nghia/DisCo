@@ -96,8 +96,8 @@ def train_step(
         logits = state.apply_fn(params, uids, prob_iids, noisy_prob_iids_bundle)
         mse_loss = mse(logits, prob_iids_bundle)  # MSE
 
-        slogits = nn.softmax(logits)
-        sprob_iids = nn.softmax(prob_iids)
+        slogits = nn.softmax(logits, axis=1)
+        sprob_iids = nn.softmax(prob_iids, axis=1)
         kl_loss = kl_divergence(slogits, sprob_iids)  # Kullback-Leibler Divergence (true probability: prob_iids)
 
         loss = mse_loss + kl_loss
