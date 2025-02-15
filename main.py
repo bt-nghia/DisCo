@@ -281,8 +281,8 @@ def main():
     """
     Training & Save checkpoint
     """
-    # state = train(state, dataloader, noise_scheduler, conf["epoch"] // 2, device, rng_gen)
-    state = train(state, dataloader2, noise_scheduler, conf["epoch"], device, rng_gen2)
+    state = train(state, dataloader, noise_scheduler, conf["epoch"], device, rng_gen)
+    # state = train(state, dataloader2, noise_scheduler, conf["epoch"], device, rng_gen2)
     """
     Generate & Evaluate
     """
