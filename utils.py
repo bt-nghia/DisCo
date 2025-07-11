@@ -375,6 +375,37 @@ class TrainDataVer4(Dataset):
 #     def __len__(self):
 #         return self.num_user
 
+# class TestData():
+#     def __init__(self, conf, task="test"):
+#         super().__init__()
+#         self.conf = conf
+#         self.task = task
+#         self.num_user = self.conf["n_user"]
+#         self.num_item = self.conf["n_item"]
+#         self.num_bundle = self.conf["n_bundle"]
+
+#         self.ui_pairs = get_pairs(f"{self.conf['data_path']}/{self.conf['dataset']}/user_item.txt")
+#         self.ub_pairs_test = get_pairs(f"{self.conf['data_path']}/{self.conf['dataset']}/user_bundle_{self.task}.txt")
+#         self.bi_pairs = get_pairs(f"{self.conf['data_path']}/{self.conf['dataset']}/bundle_item.txt")
+#         self.ub_pairs_train = get_pairs(f"{self.conf['data_path']}/{self.conf['dataset']}/user_bundle_train.txt")
+
+#         self.ui_graph = list2csr_sp_graph(self.ui_pairs, (self.num_user, self.num_item))
+#         self.ub_graph_test = list2csr_sp_graph(self.ub_pairs_test, (self.num_user, self.num_bundle))
+#         self.bi_graph = list2csr_sp_graph(self.bi_pairs, (self.num_bundle, self.num_item))
+#         self.test_uid = self.ub_graph_test.sum(axis=1).nonzero()[0]
+#         self.ub_graph_train = list2csr_sp_graph(self.ub_pairs_train, (self.num_user, self.num_bundle))
+
+#         self.ubi_graph = self.ub_graph_train @ self.bi_graph
+
+#     def __getitem__(self, index):
+#         uid = self.test_uid[index]
+#         prob_iids = np.array(self.ubi_graph[uid].todense()).reshape(-1)
+#         # prob_iids = np.array(self.ubi_graph[uid].todense()).reshape(-1)
+#         return uid, prob_iids
+
+#     def __len__(self):
+#         return len(self.test_uid)
+
 
 # class TrainDataVer2(Dataset):
 #     """
